@@ -3,11 +3,12 @@ import type { AppConfig } from "../lib/types";
 import { apiChooseVaultRoot } from "../lib/storage";
 import { errorMessage, validateConfig } from "../lib/config";
 
-export function Settings({ cfg, disabled, onSave, onClose }: {
+export function Settings({ cfg, disabled, onSave, onClose, onOpenSetup }: {
   cfg: AppConfig;
   disabled: boolean;
   onSave: (cfg: AppConfig) => Promise<void>;
   onClose: () => void;
+  onOpenSetup: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [draft, setDraft] = useState(cfg);
@@ -89,6 +90,7 @@ export function Settings({ cfg, disabled, onSave, onClose }: {
           <button type="submit" className="primary">{saving ? "Speichert …" : "Speichern & synchronisieren"}</button>
         </fieldset>
         <div className="modal-actions">
+          <button type="button" className="ghostbtn" onClick={onOpenSetup} disabled={busy}>Einführung öffnen</button>
           <button type="button" className="ghostbtn" onClick={onClose} disabled={busy}>Abbrechen</button>
         </div>
       </form>

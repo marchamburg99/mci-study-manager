@@ -591,6 +591,78 @@ textarea {
   margin-top: 24px;
 }
 
+.setup-progress {
+  margin: 0 0 4px;
+  color: var(--accent-ink);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.setup-dots {
+  display: flex;
+  gap: 6px;
+  margin: -10px 0 18px;
+  padding: 0;
+  list-style: none;
+}
+
+.setup-dots li {
+  flex: 1;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--separator);
+  transition: background 200ms var(--ease);
+}
+
+.setup-dots li.on {
+  background: var(--accent);
+}
+
+.setup-body {
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.setup-body p {
+  margin: 0 0 10px;
+}
+
+.setup-body ul,
+.setup-body ol {
+  margin: 0 0 12px;
+  padding-left: 20px;
+}
+
+.setup-body li + li {
+  margin-top: 5px;
+}
+
+.setup-body code {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.setup-prompt {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--separator);
+  border-radius: 9px;
+  background: var(--card-2);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  white-space: pre-wrap;
+  user-select: text;
+}
+
+.setup-note {
+  display: block;
+  margin-top: 10px;
+  color: var(--secondary);
+  font-size: 12px;
+}
+
 /* ── Content ───────────────────────────────────────────────────────── */
 
 .content {

@@ -39,7 +39,18 @@ Studienordner ein. Die Sakai-Anmeldung bleibt ebenfalls lokal auf dem eigenen Ma
 3. App starten, in den Einstellungen den eigenen Kalender-Link des MCI-Stundenplans
    einfügen, Studienordner wählen und speichern.
 
-Der Build läuft nur auf Macs mit Apple Silicon (M1 und neuer).
+Der Build läuft nur auf Macs mit Apple Silicon (M1 und neuer). Beim ersten Start führt
+ein Einrichtungsassistent durch Studienordner, Kalender-Link, Sakai und KI-Nutzung;
+er lässt sich später über Einstellungen → „Einführung öffnen“ erneut aufrufen.
+
+### Mit KI-Assistenten arbeiten
+
+Der Studienordner besteht aus normalen Markdown-Dateien und PDFs. Claude Cowork oder
+Claude Code erhalten den Ordner als Arbeitsordner, Obsidian-KI-Plugins öffnen ihn als
+Vault, bei ChatGPT oder Gemini lädt man einzelne Notizen oder PDFs hoch. Der
+Assistent enthält einen kopierbaren Einstieg, der die Ordnerstruktur erklärt und die
+automatisch erzeugten Sakai-Bereiche schützt. KI-Ergebnisse als eigene Dateien
+speichern und mit den Originalunterlagen prüfen.
 
 ### Sakai-Wissen in der App
 

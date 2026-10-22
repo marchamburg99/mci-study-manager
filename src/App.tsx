@@ -6,6 +6,7 @@ import { useStudyCalendar } from "./hooks/useStudyCalendar";
 import { useKnowledge } from "./hooks/useKnowledge";
 import { useSakai } from "./hooks/useSakai";
 import { Settings } from "./components/Settings";
+import { SetupWizard } from "./components/SetupWizard";
 import { configContextKey } from "./lib/config";
 import { getFokus, eventsAmTag, formatZeit, formatTag } from "./lib/focus";
 import { fachHue } from "./lib/hue";
@@ -85,12 +86,13 @@ export default function App() {
     }
   });
 
+  const [setupOpen, setSetupOpen] = useState(false);
   // First launch: without a personal calendar link nothing can sync, so guide straight into setup.
   const setupPrompted = useRef(false);
   useEffect(() => {
     if (!desktop || !cfg || cfg.icalUrl || setupPrompted.current) return;
     setupPrompted.current = true;
-    setSettingsOpen(true);
+    setSetupOpen(true);
   }, [desktop, cfg]);
 
   useEffect(() => {
@@ -599,7 +601,16 @@ export default function App() {
         </main>
       </div>
       {settingsOpen && (
-        <Settings cfg={cfg} disabled={!desktop || syncing} onClose={() => setSettingsOpen(false)} onSave={applyConfig} />
+        <Settings
+          cfg={cfg}
+          disabled={!desktop || syncing}
+          onClose={() => setSettingsOpen(false)}
+          onSave={applyConfig}
+          onOpenSetup={() => { setSettingsOpen(false); setSetupOpen(true); }}
+        />
+      )}
+      {setupOpen && cfg && (
+        <SetupWizard cfg={cfg} disabled={!desktop || syncing} onClose={() => setSetupOpen(false)} onSave={applyConfig} />
       )}
     </div>
   );
