@@ -28,6 +28,7 @@ let connected: boolean;
 let loginOpen: boolean;
 let rememberSession: boolean;
 let persistenceError: boolean;
+let autoLogin: boolean;
 let failure: string | null;
 
 function Probe({ config, enabled, catalogReady = true }: { config: AppConfig | null; enabled: boolean; catalogReady?: boolean }) {
@@ -56,6 +57,7 @@ beforeEach(() => {
   loginOpen = false;
   rememberSession = false;
   persistenceError = false;
+  autoLogin = false;
   failure = null;
   calls = [];
   ports.syncSakai.mockResolvedValue(report);
@@ -64,7 +66,7 @@ beforeEach(() => {
     if (failure === command) throw new Error("private internal response");
     if (command === "sakai_set_remember_session") rememberSession = (payload as { remember: boolean }).remember;
     if (command === "sakai_connect" || command === "sakai_poll_login") loginOpen = !connected && loginOpen;
-    if (["sakai_status", "sakai_connect", "sakai_poll_login", "sakai_set_remember_session"].includes(command)) return { connected, loginOpen, rememberSession, persistenceError };
+    if (["sakai_status", "sakai_connect", "sakai_poll_login", "sakai_set_remember_session"].includes(command)) return { connected, loginOpen, rememberSession, persistenceError, autoLogin, autoLoginRejected: false };
     if (command === "sakai_sites") return [{ id: "study", title: "Study", description: "" }];
     if (command === "sakai_begin_login") { loginOpen = true; return null; }
     if (command === "sakai_disconnect") { connected = false; loginOpen = false; rememberSession = false; persistenceError = false; return null; }
@@ -84,6 +86,25 @@ afterEach(async () => {
 });
 
 describe("useSakai", () => {
+  it("silently reconnects with stored credentials after the session expired", async () => {
+    connected = false;
+    autoLogin = true;
+    await render();
+    expect(latest).toMatchObject({ connected: false, autoLogin: true });
+
+    connected = true;
+    await act(async () => vi.advanceTimersByTimeAsync(60_000));
+
+    expect(latest).toMatchObject({ connected: true, autoLogin: true, error: null });
+    expect(ports.syncSakai).toHaveBeenCalledTimes(1);
+  });
+  it("does not poll for silent sign-in without stored credentials", async () => {
+    connected = false;
+    await render();
+    calls = [];
+    await act(async () => vi.advanceTimersByTimeAsync(5 * 60_000));
+    expect(calls).toEqual([]);
+  });
   it("makes no native calls or network jobs while disabled", async () => {
     await render(cfg, false);
     await act(async () => { await latest.beginLogin(); await latest.connect(); await latest.run(); latest.refreshSubject("coding"); await latest.disconnect(); await latest.setRememberSession(true); await vi.advanceTimersByTimeAsync(120_000); });
@@ -101,7 +122,7 @@ describe("useSakai", () => {
   it("waits for delayed course discovery before starting the initial import", async () => {
     const pending = deferred<{ id: string; title: string; description: string }[]>();
     mockIPC((command) => {
-      if (command === "sakai_status") return { connected: true, loginOpen: false, rememberSession: true, persistenceError: false };
+      if (command === "sakai_status") return { connected: true, loginOpen: false, rememberSession: true, persistenceError: false, autoLogin: false, autoLoginRejected: false };
       if (command === "sakai_sites") return pending.promise;
       throw new Error("Unexpected command");
     });
@@ -489,7 +510,7 @@ describe("useSakai", () => {
     connected = false;
     await render();
     await act(async () => latest.beginLogin());
-    const pending = deferred<{ connected: boolean; loginOpen: boolean; rememberSession: boolean; persistenceError: boolean }>();
+    const pending = deferred<{ connected: boolean; loginOpen: boolean; rememberSession: boolean; persistenceError: boolean; autoLogin: boolean; autoLoginRejected: boolean }>();
     mockIPC((command) => {
       calls.push(command);
       if (command === "sakai_poll_login") return pending.promise;
@@ -500,7 +521,7 @@ describe("useSakai", () => {
     await act(async () => { window.dispatchEvent(new Event("focus")); await vi.advanceTimersByTimeAsync(8_000); });
     expect(calls.filter(command => command === "sakai_poll_login")).toHaveLength(1);
     await act(async () => latest.disconnect());
-    await act(async () => pending.resolve({ connected: true, loginOpen: false, rememberSession: true, persistenceError: false }));
+    await act(async () => pending.resolve({ connected: true, loginOpen: false, rememberSession: true, persistenceError: false, autoLogin: false, autoLoginRejected: false }));
 
     expect(latest).toMatchObject({ connected: false, loginOpen: false, rememberSession: false, busy: false });
     expect(calls).not.toContain("sakai_sites");
@@ -520,7 +541,7 @@ describe("useSakai", () => {
   });
 
   it("does not let a late restored status replace a newly opened login", async () => {
-    const pending = deferred<{ connected: boolean; loginOpen: boolean; rememberSession: boolean; persistenceError: boolean }>();
+    const pending = deferred<{ connected: boolean; loginOpen: boolean; rememberSession: boolean; persistenceError: boolean; autoLogin: boolean; autoLoginRejected: boolean }>();
     mockIPC((command) => {
       calls.push(command);
       if (command === "sakai_status") return pending.promise;
@@ -529,7 +550,7 @@ describe("useSakai", () => {
     });
     await render();
     await act(async () => latest.beginLogin());
-    await act(async () => pending.resolve({ connected: true, loginOpen: false, rememberSession: true, persistenceError: false }));
+    await act(async () => pending.resolve({ connected: true, loginOpen: false, rememberSession: true, persistenceError: false, autoLogin: false, autoLoginRejected: false }));
 
     expect(latest).toMatchObject({ connected: false, loginOpen: true, rememberSession: false });
     expect(calls).not.toContain("sakai_sites");
@@ -571,7 +592,7 @@ describe("useSakai", () => {
     let siteRequests = 0;
     mockIPC((command, payload) => {
       if (command === "sakai_set_remember_session") rememberSession = (payload as { remember: boolean }).remember;
-      if (command === "sakai_status" || command === "sakai_set_remember_session") return { connected: true, loginOpen: false, rememberSession, persistenceError: false };
+      if (command === "sakai_status" || command === "sakai_set_remember_session") return { connected: true, loginOpen: false, rememberSession, persistenceError: false, autoLogin: false, autoLoginRejected: false };
       if (command === "sakai_sites") {
         siteRequests++;
         return siteRequests === 1 ? pending.promise : [{ id: "fresh", title: "Fresh", description: "" }];

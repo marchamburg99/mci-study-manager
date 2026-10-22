@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 
 use reqwest::header::{HeaderValue, ACCEPT, CONTENT_TYPE, COOKIE, SET_COOKIE};
 use reqwest::{Client, StatusCode, Url};
@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use tauri::webview::{Cookie, NewWindowResponse};
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
 
-use crate::sakai_credentials::{self, StorageError, Store, MAX_STORED_BYTES};
+use crate::sakai_credentials::{self, SecretStore, StorageError, Store, MAX_STORED_BYTES};
 
 const ORIGIN: &str = "https://sakai.mci4me.at";
 const HOST: &str = "sakai.mci4me.at";
@@ -21,6 +21,8 @@ const MAX_ITEMS: usize = 5000;
 const MAX_COOKIES: usize = 64;
 const MAX_COOKIE_BYTES: usize = 16 * 1024;
 const MAX_RETENTION: Duration = Duration::from_secs(30 * 24 * 60 * 60);
+const AUTO_LOGIN_COOLDOWN: Duration = Duration::from_secs(30);
+const MAX_LOGIN_HTML_BYTES: usize = 512 * 1024;
 const MAX_LESSON_NODES: usize = 1000;
 const MAX_LESSON_DEPTH: usize = 20;
 const MAX_LESSON_TEXT: usize = 1024 * 1024;
@@ -65,6 +67,8 @@ pub struct SakaiStatus {
     pub login_open: bool,
     pub remember_session: bool,
     pub persistence_error: bool,
+    pub auto_login: bool,
+    pub auto_login_rejected: bool,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -347,6 +351,10 @@ struct Session {
     retained_from: Option<SystemTime>,
     retain_until: Option<SystemTime>,
     persistence_dirty: bool,
+    auto_login: bool,
+    auto_login_rejected: bool,
+    last_auto_login: Option<Instant>,
+    auto_login_epoch: u64,
 }
 
 impl Session {
@@ -360,6 +368,10 @@ impl Session {
             forget_pending: self.forget_pending,
             marker_revoked: self.marker_revoked,
             restore_attempted: true,
+            auto_login: self.auto_login,
+            auto_login_rejected: self.auto_login_rejected,
+            last_auto_login: self.last_auto_login,
+            auto_login_epoch: self.auto_login_epoch,
             ..Self::default()
         };
         next.ok_or(Failure::Limit)
@@ -371,7 +383,28 @@ impl Session {
             login_open: self.login,
             remember_session: self.remember_session,
             persistence_error: self.persistence_error,
+            auto_login: self.auto_login,
+            auto_login_rejected: self.auto_login_rejected,
         }
+    }
+
+    /// Invalidates every in-flight credential check so it can neither store a password
+    /// nor flip the auto-login flags after the user turned the feature off.
+    fn cancel_auto_login(&mut self) -> u64 {
+        self.auto_login = false;
+        self.auto_login_rejected = false;
+        self.auto_login_epoch = self.auto_login_epoch.wrapping_add(1);
+        self.auto_login_epoch
+    }
+
+    fn auto_login_due(&self, now: Instant) -> bool {
+        self.auto_login
+            && !self.auto_login_rejected
+            && !self.connected
+            && !self.login
+            && self
+                .last_auto_login
+                .is_none_or(|last| now.duration_since(last) >= AUTO_LOGIN_COOLDOWN)
     }
 
     fn revoke(&mut self) -> Result<(), Failure> {
@@ -423,6 +456,7 @@ pub struct SakaiState {
     session: Arc<Mutex<Session>>,
     requests: Arc<tauri::async_runtime::Mutex<()>>,
     store: Arc<dyn Store>,
+    login_store: Arc<dyn SecretStore>,
     keychain: Arc<Mutex<()>>,
 }
 
@@ -438,6 +472,7 @@ impl SakaiState {
             session: Arc::new(Mutex::new(Session::default())),
             requests: Arc::new(tauri::async_runtime::Mutex::new(())),
             store: sakai_credentials::native_store(config),
+            login_store: sakai_credentials::native_login_store(),
             keychain: Arc::new(Mutex::new(())),
         }
     }
@@ -1047,6 +1082,316 @@ async fn json<T: serde::de::DeserializeOwned>(
     Ok(value)
 }
 
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct LoginCredentials {
+    version: u8,
+    eid: String,
+    pw: String,
+    /// Persisted so a password Sakai refused is never retried after an app restart.
+    #[serde(default)]
+    rejected: bool,
+}
+
+impl LoginCredentials {
+    fn new(eid: &str, pw: &str) -> Result<Self, Failure> {
+        let credentials = Self {
+            version: 1,
+            eid: eid.trim().into(),
+            pw: pw.into(),
+            rejected: false,
+        };
+        credentials.validate()?;
+        Ok(credentials)
+    }
+
+    fn validate(&self) -> Result<(), Failure> {
+        if self.version != 1
+            || self.eid.is_empty()
+            || self.eid.len() > 256
+            || self.eid.chars().any(|c| c.is_control() || c.is_whitespace())
+            || self.pw.is_empty()
+            || self.pw.len() > 1024
+            || self.pw.chars().any(char::is_control)
+        {
+            return Err(Failure::Schema);
+        }
+        Ok(())
+    }
+
+    fn decode(bytes: &[u8]) -> Result<Self, Failure> {
+        let credentials: Self = serde_json::from_slice(bytes).map_err(|_| Failure::Schema)?;
+        credentials.validate()?;
+        Ok(credentials)
+    }
+
+    fn encode(&self) -> Result<Vec<u8>, Failure> {
+        self.validate()?;
+        serde_json::to_vec(self).map_err(|_| Failure::Schema)
+    }
+
+    fn form_body(&self) -> String {
+        let mut url = Url::parse("https://form.invalid/").expect("static URL");
+        url.query_pairs_mut()
+            .append_pair("eid", &self.eid)
+            .append_pair("pw", &self.pw)
+            .append_pair("submit", "Log in");
+        url.query().unwrap_or_default().into()
+    }
+}
+
+/// Signs in with stored credentials on a private cookie set and returns it only after
+/// Sakai confirms an authenticated session. Never touches the shared session state,
+/// so a rejected password cannot revoke or reset an existing connection.
+async fn perform_login(credentials: &LoginCredentials) -> Result<Vec<SessionCookie>, Failure> {
+    let client = http_client()?;
+    let mut cookies = Vec::new();
+    let form_url = checked_url(&format!("{ORIGIN}/portal/login"))?;
+    let response = client
+        .get(form_url.clone())
+        .send()
+        .await
+        .map_err(|_| Failure::Network)?;
+    update_cookies(&mut cookies, response.headers(), &form_url)?;
+    drain_bounded(response, MAX_LOGIN_HTML_BYTES).await?;
+
+    let login_url = checked_url(&format!("{ORIGIN}/portal/relogin"))?;
+    let mut request = client
+        .post(login_url.clone())
+        .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .body(credentials.form_body());
+    if let Ok(header) = cookie_header(&cookies, &login_url, SystemTime::now()) {
+        request = request.header(COOKIE, header);
+    }
+    let response = request.send().await.map_err(|_| Failure::Network)?;
+    if response.status().is_server_error() {
+        return Err(Failure::Response);
+    }
+    update_cookies(&mut cookies, response.headers(), &login_url)?;
+    drain_bounded(response, MAX_LOGIN_HTML_BYTES).await?;
+
+    // With _validateSession Sakai answers 401 for anonymous sessions, so this is the
+    // authoritative success check regardless of how the login page responded.
+    let check_url = endpoint(
+        "/direct/site.json",
+        &[("_limit", "1".into()), ("_start", "0".into())],
+    )?;
+    let response = client
+        .get(check_url.clone())
+        .header(COOKIE, cookie_header(&cookies, &check_url, SystemTime::now())?)
+        .header(ACCEPT, "application/json")
+        .send()
+        .await
+        .map_err(|_| Failure::Network)?;
+    if response.status() == StatusCode::UNAUTHORIZED
+        || login_redirect(
+            &check_url,
+            response.status(),
+            response.headers().get(reqwest::header::LOCATION),
+        )
+    {
+        return Err(Failure::Expired);
+    }
+    if !response.status().is_success() {
+        return Err(Failure::Response);
+    }
+    update_cookies(&mut cookies, response.headers(), &check_url)?;
+    let body = drain_bounded(response, MAX_JSON_BYTES).await?;
+    let collection: SiteCollection = serde_json::from_slice(&body).map_err(|_| Failure::Schema)?;
+    if collection.site_collection.len() > 1 {
+        return Err(Failure::Schema);
+    }
+    if cookies.is_empty() {
+        return Err(Failure::Expired);
+    }
+    Ok(cookies)
+}
+
+async fn drain_bounded(mut response: reqwest::Response, maximum: usize) -> Result<Vec<u8>, Failure> {
+    check_content_length(response.content_length(), maximum)?;
+    let mut body = Vec::new();
+    while let Some(chunk) = response.chunk().await.map_err(|_| Failure::Network)? {
+        append_bytes(&mut body, &chunk, maximum)?;
+    }
+    Ok(body)
+}
+
+impl SakaiState {
+    fn read_login_sync(&self) -> Result<Option<LoginCredentials>, Failure> {
+        let _keychain = self.keychain.lock().map_err(|_| Failure::Persistence)?;
+        match self.login_store.read() {
+            Ok(Some(bytes)) => LoginCredentials::decode(&bytes).map(Some),
+            Ok(None) => Ok(None),
+            Err(_) => Err(Failure::Persistence),
+        }
+    }
+
+    /// Writes only while `epoch` is current. Disable and disconnect bump the epoch before
+    /// they wait for the Keychain lock, so their deletion always runs after this write.
+    fn write_login_sync(&self, credentials: &LoginCredentials, epoch: u64) -> Result<(), Failure> {
+        let bytes = credentials.encode()?;
+        let _keychain = self.keychain.lock().map_err(|_| Failure::Persistence)?;
+        if self.lock()?.auto_login_epoch != epoch {
+            return Err(Failure::Cancelled);
+        }
+        self.login_store
+            .write(&bytes)
+            .map_err(|_| Failure::Persistence)
+    }
+
+    fn delete_login_sync(&self) -> Result<(), Failure> {
+        let _keychain = self.keychain.lock().map_err(|_| Failure::Persistence)?;
+        self.login_store.delete().map_err(|_| Failure::Persistence)
+    }
+
+    /// Adopts a verified cookie set into the current generation unless a manual login
+    /// or another connection won the race in the meantime.
+    fn install_login(&self, generation: u64, cookies: Vec<SessionCookie>) -> Result<bool, Failure> {
+        let mut session = self.lock()?;
+        if session.generation != generation || session.login || session.connected {
+            return Ok(false);
+        }
+        let now = SystemTime::now();
+        session.cookies = cookies;
+        session.client = Some(http_client()?);
+        session.connected = true;
+        session.persistence_dirty = true;
+        session.retained_from = Some(now);
+        session.retain_until = now.checked_add(MAX_RETENTION);
+        Ok(true)
+    }
+}
+
+/// Signs in silently with stored credentials. `force` skips the cooldown for the first
+/// check after app start, when the stored state is not known yet.
+async fn try_auto_login(state: &SakaiState, generation: u64, force: bool) -> Result<(), Failure> {
+    let epoch = {
+        let mut session = state.lock()?;
+        let now = Instant::now();
+        if session.generation != generation
+            || session.connected
+            || session.login
+            || session.auto_login_rejected
+            || (!force && !session.auto_login_due(now))
+        {
+            return Ok(());
+        }
+        session.last_auto_login = Some(now);
+        session.auto_login_epoch
+    };
+    let set_flags = |enabled: bool, rejected: bool| -> Result<bool, Failure> {
+        let mut session = state.lock()?;
+        if session.auto_login_epoch != epoch {
+            return Ok(false);
+        }
+        session.auto_login = enabled;
+        session.auto_login_rejected = rejected;
+        Ok(true)
+    };
+    let worker = state.clone();
+    let credentials = tauri::async_runtime::spawn_blocking(move || worker.read_login_sync())
+        .await
+        .map_err(|_| Failure::Persistence)?;
+    let mut credentials = match credentials {
+        Ok(Some(credentials)) => credentials,
+        Ok(None) => {
+            set_flags(false, false)?;
+            return Ok(());
+        }
+        Err(error) => {
+            set_flags(false, false)?;
+            return Err(error);
+        }
+    };
+    if !set_flags(true, credentials.rejected)? || credentials.rejected {
+        return Ok(());
+    }
+    match perform_login(&credentials).await {
+        Ok(cookies) => {
+            if state.lock()?.auto_login_epoch == epoch && state.install_login(generation, cookies)? {
+                state.persist(generation, false).await?;
+            }
+            Ok(())
+        }
+        Err(Failure::Expired) => {
+            // Stop retrying a rejected password so Sakai never locks the account.
+            if set_flags(true, true)? {
+                credentials.rejected = true;
+                let worker = state.clone();
+                let _ = tauri::async_runtime::spawn_blocking(move || {
+                    worker.write_login_sync(&credentials, epoch)
+                })
+                .await;
+            }
+            Ok(())
+        }
+        Err(error) => Err(error),
+    }
+}
+
+#[tauri::command]
+pub async fn sakai_enable_auto_login(
+    app: AppHandle,
+    window: WebviewWindow,
+    eid: String,
+    pw: String,
+) -> Result<SakaiStatus, String> {
+    main_window(&window)?;
+    let state = app.state::<SakaiState>();
+    let credentials = LoginCredentials::new(&eid, &pw).map_err(|_| "SAKAI_LOGIN_INVALID".to_string())?;
+    // A new epoch also retires any silent attempt still running with older credentials.
+    let epoch = state.lock().map_err(Failure::message)?.cancel_auto_login();
+    let cookies = match perform_login(&credentials).await {
+        Ok(cookies) => cookies,
+        Err(Failure::Expired) => return Err("SAKAI_LOGIN_REJECTED".into()),
+        Err(error) => return Err(error.message()),
+    };
+    let _request = state.requests.lock().await;
+    let worker = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || worker.write_login_sync(&credentials, epoch))
+        .await
+        .map_err(|_| Failure::Persistence.message())?
+        .map_err(Failure::message)?;
+    let generation = {
+        let mut session = state.lock().map_err(Failure::message)?;
+        if session.auto_login_epoch != epoch {
+            return Err(Failure::Cancelled.message());
+        }
+        session.auto_login = true;
+        session.auto_login_rejected = false;
+        session.restore_attempted = true;
+        session.generation
+    };
+    if state
+        .install_login(generation, cookies)
+        .map_err(Failure::message)?
+    {
+        state
+            .persist(generation, false)
+            .await
+            .map_err(Failure::message)?;
+    }
+    let status = state.lock().map_err(Failure::message)?.status();
+    Ok(status)
+}
+
+#[tauri::command]
+pub async fn sakai_disable_auto_login(
+    app: AppHandle,
+    window: WebviewWindow,
+) -> Result<SakaiStatus, String> {
+    main_window(&window)?;
+    let state = app.state::<SakaiState>();
+    state.lock().map_err(Failure::message)?.cancel_auto_login();
+    let worker = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || worker.delete_login_sync())
+        .await
+        .map_err(|_| Failure::Persistence.message())?
+        .map_err(Failure::message)?;
+    let status = state.lock().map_err(Failure::message)?.status();
+    Ok(status)
+}
+
 #[tauri::command]
 pub async fn sakai_begin_login(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
     main_window(&window)?;
@@ -1302,11 +1647,19 @@ pub async fn sakai_disconnect(app: AppHandle, window: WebviewWindow) -> Result<(
         let mut session = state.lock().map_err(Failure::message)?;
         let window = session.login_window.take();
         session.revoke().map_err(Failure::message)?;
+        session.cancel_auto_login();
         session.reset().map_err(Failure::message)?;
         window
     };
     destroy_login(window);
-    state.forget().await.map_err(Failure::message)
+    let forgotten = state.forget().await;
+    // Disconnecting must also stop silent sign-in, otherwise the next check reconnects.
+    let worker = state.inner().clone();
+    let deleted = tauri::async_runtime::spawn_blocking(move || worker.delete_login_sync())
+        .await
+        .map_err(|_| Failure::Persistence)
+        .and_then(|result| result);
+    forgotten.and(deleted).map_err(Failure::message)
 }
 
 #[tauri::command]
@@ -1356,15 +1709,25 @@ pub async fn sakai_status(app: AppHandle, window: WebviewWindow) -> Result<Sakai
 async fn status(state: &SakaiState) -> Result<SakaiStatus, Failure> {
     let generation = state.lock()?.generation;
     let _request = state.requests.lock().await;
-    {
+    let retry_auto_login = {
         let mut session = state.lock()?;
         if session.generation != generation {
             return Err(Failure::Cancelled);
         }
-        if session.restore_attempted || session.login || session.connected {
+        if session.login || session.connected {
             return Ok(session.status());
         }
+        if session.restore_attempted && !session.auto_login_due(Instant::now()) {
+            return Ok(session.status());
+        }
+        let retry = session.restore_attempted;
         session.restore_attempted = true;
+        retry
+    };
+    if retry_auto_login {
+        // A failed silent sign-in leaves the app offline; the next check retries.
+        let _ = try_auto_login(state, generation, false).await;
+        return Ok(state.lock()?.status());
     }
     match restore_session(state, generation).await {
         Ok(()) | Err(Failure::Network | Failure::Expired) => {}
@@ -1373,6 +1736,8 @@ async fn status(state: &SakaiState) -> Result<SakaiStatus, Failure> {
         }
         Err(error) => return Err(error),
     }
+    let generation = state.lock()?.generation;
+    let _ = try_auto_login(state, generation, true).await;
     Ok(state.lock()?.status())
 }
 
@@ -1849,7 +2214,7 @@ pub async fn sakai_download_pdf(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sakai_credentials::test_store::MemoryStore;
+    use crate::sakai_credentials::test_store::{MemorySecret, MemoryStore};
 
     #[test]
     fn snapshot_failures_identify_the_stage_with_static_messages() {
@@ -1939,9 +2304,114 @@ mod tests {
         assert_eq!(
             serde_json::to_value(state.lock().unwrap().status()).unwrap(),
             serde_json::json!({
-                "connected": true, "loginOpen": false, "rememberSession": true, "persistenceError": false
+                "connected": true, "loginOpen": false, "rememberSession": true, "persistenceError": false,
+                "autoLogin": false, "autoLoginRejected": false
             })
         );
+    }
+
+    #[test]
+    fn login_credentials_reject_malformed_input_and_encode_form_safely() {
+        assert!(LoginCredentials::new("ab1234@mci4me.at", "").is_err());
+        assert!(LoginCredentials::new("", "secret").is_err());
+        assert!(LoginCredentials::new("ab 1234@mci4me.at", "secret").is_err());
+        assert!(LoginCredentials::new("ab1234@mci4me.at", "line\nbreak").is_err());
+        let credentials = LoginCredentials::new("  ab1234@mci4me.at ", "p&w=+ ü").unwrap();
+        assert_eq!(credentials.eid, "ab1234@mci4me.at");
+        assert_eq!(
+            credentials.form_body(),
+            "eid=ab1234%40mci4me.at&pw=p%26w%3D%2B+%C3%BC&submit=Log+in"
+        );
+        let decoded = LoginCredentials::decode(&credentials.encode().unwrap()).unwrap();
+        assert_eq!((decoded.eid, decoded.pw), (credentials.eid, credentials.pw));
+        assert!(LoginCredentials::decode(br#"{"version":2,"eid":"a","pw":"b"}"#).is_err());
+    }
+
+    #[test]
+    fn auto_login_flags_survive_resets_and_respect_rejection_and_cooldown() {
+        let mut session = Session {
+            auto_login: true,
+            ..Session::default()
+        };
+        let now = Instant::now();
+        assert!(session.auto_login_due(now));
+        session.last_auto_login = Some(now);
+        assert!(!session.auto_login_due(now + Duration::from_secs(5)));
+        assert!(session.auto_login_due(now + AUTO_LOGIN_COOLDOWN));
+        session.auto_login_rejected = true;
+        session.reset().unwrap();
+        assert!(session.auto_login && session.auto_login_rejected);
+        assert!(!session.auto_login_due(now + AUTO_LOGIN_COOLDOWN));
+    }
+
+    #[test]
+    fn startup_without_stored_credentials_disables_auto_login_without_network() {
+        let secret = MemorySecret::default();
+        let state = SakaiState {
+            login_store: Arc::new(secret.clone()),
+            ..SakaiState::default()
+        };
+        state.lock().unwrap().auto_login = true;
+        let status = tauri::async_runtime::block_on(status(&state)).unwrap();
+        assert!(!status.connected && !status.auto_login && !status.auto_login_rejected);
+    }
+
+    #[test]
+    fn persisted_rejection_blocks_startup_login_without_network() {
+        let secret = MemorySecret::default();
+        let mut credentials = LoginCredentials::new("ab1234@mci4me.at", "old-password").unwrap();
+        credentials.rejected = true;
+        *secret.0.lock().unwrap() = Some(credentials.encode().unwrap());
+        let state = SakaiState {
+            login_store: Arc::new(secret),
+            ..SakaiState::default()
+        };
+        let status = tauri::async_runtime::block_on(status(&state)).unwrap();
+        assert!(status.auto_login && status.auto_login_rejected && !status.connected);
+    }
+
+    #[test]
+    fn cancelled_auto_login_cannot_store_credentials_afterwards() {
+        let secret = MemorySecret::default();
+        let state = SakaiState {
+            login_store: Arc::new(secret.clone()),
+            ..SakaiState::default()
+        };
+        let epoch = state.lock().unwrap().cancel_auto_login();
+        state.lock().unwrap().cancel_auto_login();
+        let credentials = LoginCredentials::new("ab1234@mci4me.at", "secret").unwrap();
+        assert_eq!(
+            state.write_login_sync(&credentials, epoch).unwrap_err(),
+            Failure::Cancelled
+        );
+        assert!(secret.0.lock().unwrap().is_none());
+        let current = state.lock().unwrap().auto_login_epoch;
+        state.write_login_sync(&credentials, current).unwrap();
+        assert!(secret.0.lock().unwrap().is_some());
+    }
+
+    #[test]
+    fn rejected_auto_login_is_not_retried_by_status_checks() {
+        let secret = MemorySecret::default();
+        *secret.0.lock().unwrap() = Some(
+            LoginCredentials::new("ab1234@mci4me.at", "secret")
+                .unwrap()
+                .encode()
+                .unwrap(),
+        );
+        let state = SakaiState {
+            login_store: Arc::new(secret),
+            ..SakaiState::default()
+        };
+        {
+            let mut session = state.lock().unwrap();
+            session.restore_attempted = true;
+            session.auto_login = true;
+            session.auto_login_rejected = true;
+        }
+        let status = tauri::async_runtime::block_on(status(&state)).unwrap();
+        assert!(status.auto_login && status.auto_login_rejected && !status.connected);
+        assert!(state.lock().unwrap().last_auto_login.is_none());
     }
 
     #[test]

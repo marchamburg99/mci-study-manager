@@ -15,11 +15,11 @@ beforeEach(() => {
   document.body.append(container);
   root = createRoot(container);
   sync = {
-    context: "synthetic", connected: true, loginOpen: false, loginEpoch: 0, loginCheckFailed: false, rememberSession: false, persistenceError: false, busy: false, sites: [],
+    context: "synthetic", connected: true, loginOpen: false, loginEpoch: 0, loginCheckFailed: false, rememberSession: false, persistenceError: false, autoLogin: false, autoLoginRejected: false, busy: false, sites: [],
     preferences: { autoSync: false, selections: [], lastSync: null }, hasPreferences: true,
     initializationBlocked: false, setupRequested: false, error: null, progress: "",
     report: { updated: 12, unchanged: 0, downloaded: 188, warnings: [], completedAt: "2026-09-22T10:00:00Z" },
-    beginLogin: vi.fn(), connect: vi.fn(), disconnect: vi.fn(), run: vi.fn(), refreshSubject: vi.fn(), setSelections: vi.fn(), setAutoSync: vi.fn(), setRememberSession: vi.fn(),
+    beginLogin: vi.fn(), connect: vi.fn(), disconnect: vi.fn(), run: vi.fn(), refreshSubject: vi.fn(), setSelections: vi.fn(), setAutoSync: vi.fn(), setRememberSession: vi.fn(), enableAutoLogin: vi.fn(), disableAutoLogin: vi.fn(),
   };
 });
 

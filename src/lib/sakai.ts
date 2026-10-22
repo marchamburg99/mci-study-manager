@@ -31,18 +31,33 @@ export interface SakaiSessionStatus {
   loginOpen: boolean;
   rememberSession: boolean;
   persistenceError: boolean;
+  autoLogin: boolean;
+  autoLoginRejected: boolean;
 }
 
 export async function apiSakaiStatus(
   command: "sakai_status" | "sakai_connect" | "sakai_poll_login" | "sakai_set_remember_session" = "sakai_status",
   remember?: boolean,
 ): Promise<SakaiSessionStatus> {
-  const result = await invoke<unknown>(command, remember === undefined ? undefined : { remember });
+  return parseStatus(await invoke<unknown>(command, remember === undefined ? undefined : { remember }));
+}
+
+function parseStatus(result: unknown): SakaiSessionStatus {
   if (!record(result) || typeof result.connected !== "boolean" || typeof result.loginOpen !== "boolean"
-    || typeof result.rememberSession !== "boolean" || typeof result.persistenceError !== "boolean") {
+    || typeof result.rememberSession !== "boolean" || typeof result.persistenceError !== "boolean"
+    || typeof result.autoLogin !== "boolean" || typeof result.autoLoginRejected !== "boolean") {
     throw new Error("Ungültiger Sakai-Anmeldestatus.");
   }
-  return { connected: result.connected, loginOpen: result.loginOpen, rememberSession: result.rememberSession, persistenceError: result.persistenceError };
+  return { connected: result.connected, loginOpen: result.loginOpen, rememberSession: result.rememberSession, persistenceError: result.persistenceError,
+    autoLogin: result.autoLogin, autoLoginRejected: result.autoLoginRejected };
+}
+
+export async function apiSakaiEnableAutoLogin(eid: string, pw: string): Promise<SakaiSessionStatus> {
+  return parseStatus(await invoke<unknown>("sakai_enable_auto_login", { eid, pw }));
+}
+
+export async function apiSakaiDisableAutoLogin(): Promise<SakaiSessionStatus> {
+  return parseStatus(await invoke<unknown>("sakai_disable_auto_login"));
 }
 
 export interface SakaiResource {

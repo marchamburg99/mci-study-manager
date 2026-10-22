@@ -7,9 +7,9 @@ afterEach(clearMocks);
 
 describe("apiSakaiStatus", () => {
   it("only exposes non-secret session status fields", async () => {
-    mockIPC(() => ({ connected: true, loginOpen: false, rememberSession: true, persistenceError: false, privateExtra: "synthetic" }));
+    mockIPC(() => ({ connected: true, loginOpen: false, rememberSession: true, persistenceError: false, autoLogin: true, autoLoginRejected: false, privateExtra: "synthetic" }));
 
-    expect(await apiSakaiStatus()).toEqual({ connected: true, loginOpen: false, rememberSession: true, persistenceError: false });
+    expect(await apiSakaiStatus()).toEqual({ connected: true, loginOpen: false, rememberSession: true, persistenceError: false, autoLogin: true, autoLoginRejected: false });
   });
 
   it.each([null, [], {}, { connected: true }, { connected: true, loginOpen: false, rememberSession: "true", persistenceError: false }])(
@@ -23,7 +23,7 @@ describe("apiSakaiStatus", () => {
     let call: unknown;
     mockIPC((command, payload) => {
       call = { command, payload };
-      return { connected: false, loginOpen: false, rememberSession: true, persistenceError: false };
+      return { connected: false, loginOpen: false, rememberSession: true, persistenceError: false, autoLogin: false, autoLoginRejected: false };
     });
     await apiSakaiStatus("sakai_set_remember_session", true);
 

@@ -57,10 +57,58 @@ pub fn native_store(config: Option<PathBuf>) -> Arc<dyn Store> {
     Arc::new(UnavailableStore { failed: false })
 }
 
+/// Opt-in Sakai login credentials, kept apart from the session item so that revoking
+/// a session never touches the password and vice versa.
+pub trait SecretStore: Send + Sync {
+    fn read(&self) -> Result<Option<Vec<u8>>, StorageError>;
+    fn write(&self, bytes: &[u8]) -> Result<(), StorageError>;
+    fn delete(&self) -> Result<(), StorageError>;
+}
+
+#[cfg(any(not(target_os = "macos"), test))]
+struct UnavailableSecret;
+
+#[cfg(any(not(target_os = "macos"), test))]
+impl SecretStore for UnavailableSecret {
+    fn read(&self) -> Result<Option<Vec<u8>>, StorageError> {
+        Ok(None)
+    }
+    fn write(&self, _: &[u8]) -> Result<(), StorageError> {
+        Err(StorageError)
+    }
+    fn delete(&self) -> Result<(), StorageError> {
+        Ok(())
+    }
+}
+
+pub fn native_login_store() -> Arc<dyn SecretStore> {
+    #[cfg(all(target_os = "macos", not(test)))]
+    return Arc::new(native::KeychainLogin);
+    #[cfg(any(not(target_os = "macos"), test))]
+    Arc::new(UnavailableSecret)
+}
+
 #[cfg(test)]
 pub mod test_store {
     use super::*;
     use std::sync::{Arc, Mutex};
+
+    #[derive(Clone, Default)]
+    pub struct MemorySecret(pub Arc<Mutex<Option<Vec<u8>>>>);
+
+    impl SecretStore for MemorySecret {
+        fn read(&self) -> Result<Option<Vec<u8>>, StorageError> {
+            Ok(self.0.lock().unwrap().clone())
+        }
+        fn write(&self, bytes: &[u8]) -> Result<(), StorageError> {
+            *self.0.lock().unwrap() = Some(bytes.to_vec());
+            Ok(())
+        }
+        fn delete(&self) -> Result<(), StorageError> {
+            *self.0.lock().unwrap() = None;
+            Ok(())
+        }
+    }
 
     #[derive(Default)]
     pub struct Memory {
@@ -351,6 +399,44 @@ mod native {
         }
         fn delete(&self) -> Result<(), StorageError> {
             match security_framework::passwords::delete_generic_password_options(options()) {
+                Ok(()) => Ok(()),
+                Err(error) if error.code() == -25300 => Ok(()),
+                Err(_) => Err(StorageError),
+            }
+        }
+    }
+
+    #[cfg(not(test))]
+    pub(super) struct KeychainLogin;
+
+    #[cfg(not(test))]
+    fn login_options() -> security_framework::passwords::PasswordOptions {
+        let mut options = security_framework::passwords::PasswordOptions::new_generic_password(
+            "de.mci.studymanager.sakai-login",
+            "sakai.mci4me.at",
+        );
+        options.set_access_synchronized(Some(false));
+        options
+    }
+
+    #[cfg(not(test))]
+    impl SecretStore for KeychainLogin {
+        fn read(&self) -> Result<Option<Vec<u8>>, StorageError> {
+            match security_framework::passwords::generic_password(login_options()) {
+                Ok(bytes) => Ok(Some(bytes)),
+                Err(error) if error.code() == -25300 => Ok(None),
+                Err(_) => Err(StorageError),
+            }
+        }
+        fn write(&self, bytes: &[u8]) -> Result<(), StorageError> {
+            if bytes.is_empty() || bytes.len() > MAX_STORED_BYTES {
+                return Err(StorageError);
+            }
+            security_framework::passwords::set_generic_password_options(bytes, login_options())
+                .map_err(|_| StorageError)
+        }
+        fn delete(&self) -> Result<(), StorageError> {
+            match security_framework::passwords::delete_generic_password_options(login_options()) {
                 Ok(()) => Ok(()),
                 Err(error) if error.code() == -25300 => Ok(()),
                 Err(_) => Err(StorageError),

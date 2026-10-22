@@ -240,6 +240,8 @@ pub fn run() {
             sakai::sakai_status,
             sakai::sakai_poll_login,
             sakai::sakai_set_remember_session,
+            sakai::sakai_enable_auto_login,
+            sakai::sakai_disable_auto_login,
             sakai::sakai_sites,
             sakai::sakai_site_snapshot,
             sakai::sakai_download_pdf,

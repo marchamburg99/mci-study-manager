@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { AppConfig, StudyEvent } from "../lib/types";
 import type { KnowledgeNote } from "../lib/knowledge";
-import { apiSakaiSites, apiSakaiStatus, defaultSelections, type SakaiSelection, type SakaiSite, type SakaiSyncReport } from "../lib/sakai";
+import { apiSakaiDisableAutoLogin, apiSakaiEnableAutoLogin, apiSakaiSites, apiSakaiStatus, defaultSelections, type SakaiSelection, type SakaiSite, type SakaiSyncReport } from "../lib/sakai";
 import { syncSakai } from "../lib/sakaiStorage";
 import { EMPTY_SAKAI_PREFERENCES, parseSakaiPreferences, sakaiConfigKey, type SakaiPreferences } from "../lib/sakaiConfig";
 
@@ -16,6 +16,8 @@ interface State {
   loginCheckFailed: boolean;
   rememberSession: boolean;
   persistenceError: boolean;
+  autoLogin: boolean;
+  autoLoginRejected: boolean;
   busy: boolean;
   sites: SakaiSite[];
   preferences: SakaiPreferences;
@@ -26,7 +28,7 @@ interface State {
   progress: string;
   report: SakaiSyncReport | null;
 }
-const EMPTY: State = { context: "", connected: false, loginOpen: false, loginEpoch: 0, loginCheckFailed: false, rememberSession: false, persistenceError: false, busy: false, sites: [], preferences: EMPTY_SAKAI_PREFERENCES,
+const EMPTY: State = { context: "", connected: false, loginOpen: false, loginEpoch: 0, loginCheckFailed: false, rememberSession: false, persistenceError: false, autoLogin: false, autoLoginRejected: false, busy: false, sites: [], preferences: EMPTY_SAKAI_PREFERENCES,
   hasPreferences: false, initializationBlocked: false, setupRequested: false, error: null, progress: "", report: null };
 
 function message(error: unknown): string {
@@ -116,6 +118,38 @@ export function useSakai(cfg: AppConfig | null, events: StudyEvent[], notes: Kno
     window.addEventListener("online", onFocus);
     return () => { stopped = true; window.clearInterval(timer); window.removeEventListener("focus", onFocus); window.removeEventListener("online", onFocus); };
   }, [context, enabled, state.context, state.loginCheckFailed, state.loginEpoch, state.loginOpen, update]);
+
+  // Silent re-login: Sakai ends idle sessions after an hour and the Mac sleeps overnight.
+  useEffect(() => {
+    if (!enabled || state.context !== context || state.connected || state.loginOpen || !state.autoLogin || state.autoLoginRejected) return;
+    const epoch = generation.current;
+    let checking = false;
+    const isCurrent = () => generation.current === epoch && current.current.context === context;
+    const check = async () => {
+      if (checking || busy.current || !navigator.onLine) return;
+      checking = true;
+      try {
+        const status = await apiSakaiStatus();
+        if (!isCurrent()) return;
+        update(status);
+        if (!status.connected) return;
+        startupPending.current = true;
+        update({ error: null });
+        if (!current.current.sites.length) {
+          const sites = await apiSakaiSites();
+          if (isCurrent()) update({ sites });
+        }
+      } catch {
+        // The next focus, network change or interval retries; the backend enforces a cooldown.
+      } finally { checking = false; }
+    };
+    void check();
+    const timer = window.setInterval(() => { void check(); }, 60_000);
+    const onActive = () => { void check(); };
+    window.addEventListener("focus", onActive);
+    window.addEventListener("online", onActive);
+    return () => { window.clearInterval(timer); window.removeEventListener("focus", onActive); window.removeEventListener("online", onActive); };
+  }, [context, enabled, state.autoLogin, state.autoLoginRejected, state.connected, state.context, state.loginOpen, update]);
 
   const save = useCallback((preferences: SakaiPreferences): boolean => {
     if (!enabled || current.current.context !== context) return false;
@@ -238,7 +272,7 @@ export function useSakai(cfg: AppConfig | null, events: StudyEvent[], notes: Kno
     update({ connected: false, loginOpen: false, loginCheckFailed: false, busy: true, progress: "", report: null });
     try {
       await invoke("sakai_disconnect");
-      if (generation.current === epoch) update({ rememberSession: false, persistenceError: false, error: null });
+      if (generation.current === epoch) update({ rememberSession: false, persistenceError: false, autoLogin: false, autoLoginRejected: false, error: null });
     }
     catch { if (generation.current === epoch) update({ persistenceError: true, error: "Die gespeicherte Sakai-Sitzung konnte nicht vollständig gelöscht werden. Bitte „Verbindung trennen“ erneut versuchen." }); }
     finally { if (generation.current === epoch) { busy.current = false; update({ busy: false }); inputs.current.onUpdated(); } }
@@ -266,9 +300,51 @@ export function useSakai(cfg: AppConfig | null, events: StudyEvent[], notes: Kno
     } finally { if (generation.current === epoch) { busy.current = false; update({ busy: false }); } }
   };
 
+  const enableAutoLogin = async (eid: string, pw: string): Promise<boolean> => {
+    if (!enabled || busy.current || current.current.loginOpen) return false;
+    const epoch = ++generation.current;
+    busy.current = true;
+    update({ busy: true, error: null });
+    try {
+      const status = await apiSakaiEnableAutoLogin(eid, pw);
+      if (generation.current !== epoch) return false;
+      update(status);
+      if (status.connected) {
+        startupPending.current = true;
+        update({ setupRequested: true, initializationBlocked: false });
+        if (!current.current.sites.length) {
+          const sites = await apiSakaiSites();
+          if (generation.current === epoch) update({ sites });
+        }
+      }
+      return true;
+    } catch (error) {
+      if (generation.current === epoch) {
+        const text = String(error);
+        update({ error: text.includes("SAKAI_LOGIN_REJECTED") ? "Sakai hat die Anmeldung abgelehnt. Bitte E-Mail-Adresse (z. B. ab1234@mci4me.at) und Passwort prüfen."
+          : text.includes("SAKAI_LOGIN_INVALID") ? "Bitte E-Mail-Adresse und Passwort vollständig eingeben."
+          : "Automatische Anmeldung konnte nicht eingerichtet werden. Bitte Verbindung und Schlüsselbund-Zugriff prüfen." });
+      }
+      return false;
+    } finally { if (generation.current === epoch) { busy.current = false; update({ busy: false }); } }
+  };
+
+  const disableAutoLogin = async () => {
+    if (!enabled || busy.current) return;
+    const epoch = ++generation.current;
+    busy.current = true;
+    update({ busy: true, error: null });
+    try {
+      const status = await apiSakaiDisableAutoLogin();
+      if (generation.current === epoch) update(status);
+    } catch {
+      if (generation.current === epoch) update({ error: "Die gespeicherten Zugangsdaten konnten nicht gelöscht werden. Bitte erneut versuchen." });
+    } finally { if (generation.current === epoch) { busy.current = false; update({ busy: false }); } }
+  };
+
   return {
     ...(enabled && state.context === context ? state : EMPTY),
-    beginLogin, connect, disconnect, run, refreshSubject, setRememberSession,
+    beginLogin, connect, disconnect, run, refreshSubject, setRememberSession, enableAutoLogin, disableAutoLogin,
     setSelections: (selections: SakaiSelection[]) => { if (!busy.current) save({ ...current.current.preferences, selections }); },
     setAutoSync: (autoSync: boolean) => { if (!busy.current) save({ ...current.current.preferences, autoSync }); },
   };

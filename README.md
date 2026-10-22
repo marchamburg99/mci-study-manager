@@ -98,10 +98,11 @@ ab und aktualisiert danach alle fünf Minuten. Beim Zurückwechseln zur App, nac
 Wiederherstellung der Verbindung und beim Öffnen eines Fachs wird nachgeholt, sobald
 der letzte Abruf mindestens eine Minute zurückliegt. Das geöffnete Fach und Fächer
 mit heutigen Terminen werden zuerst verarbeitet. Die App muss geöffnet und bei
-Sakai angemeldet sein. Das Passwort wird ausschließlich auf der Sakai-Seite eingegeben;
-die App übernimmt keine Chrome-Cookies. Ohne die optionale Einstellung „Auf diesem
-Mac angemeldet bleiben“ bleibt die Sitzung nur im Arbeitsspeicher. Mit der Option
-speichert die App ihre Sakai-Sitzung im lokalen macOS-Schlüsselbund, nicht das Passwort.
+Sakai angemeldet sein. Ohne automatische Anmeldung wird das Passwort ausschließlich
+auf der Sakai-Seite eingegeben; die App übernimmt keine Chrome-Cookies. Ohne die
+optionale Einstellung „Auf diesem Mac angemeldet bleiben“ bleibt die Sitzung nur im
+Arbeitsspeicher. Mit der Option speichert die App ihre Sakai-Sitzung im lokalen
+macOS-Schlüsselbund.
 Diese Einstellung gilt für die App auf diesem Mac, nicht pro Vault. Beim Neustart
 wird eine gespeicherte Sitzung erst bei Sakai geprüft. Die Wiederherstellung ist
 auf höchstens 30 Tage nach Anmeldung begrenzt; Sakai kann die Sitzung früher beenden. Bei Netzwerk-
@@ -117,6 +118,24 @@ zweite Instanz gestartet, bleibt dort diese Funktion mit einem Speicherhinweis g
 Die bereits gespeicherten Inhalte im Vault und Anmeldungen anderer Browser bleiben
 unberührt. Die App liest keine Einträge aus Apple „Passwörter“ aus; sie verwendet
 einen eigenen Schlüsselbund-Eintrag ausschließlich für ihre Sakai-Sitzung.
+
+### Automatische Anmeldung (optional)
+
+Sakai beendet Sitzungen nach einer Stunde ohne Aktivität (`maxInactiveInterval` 3600 s),
+und über Nacht schläft der Mac. Eine gespeicherte Sitzung ist deshalb morgens meist
+abgelaufen. Für diesen Fall kann man unter „Studienwissen“ → „Automatisch anmelden“
+MCI-E-Mail und Sakai-Passwort hinterlegen. Die App prüft die Anmeldung zuerst bei
+Sakai und speichert die Zugangsdaten erst danach in einem eigenen Eintrag im
+macOS-Schlüsselbund (`de.mci.studymanager.sakai-login`), nicht in iCloud und nicht im
+Vault. Sie werden nur per HTTPS an `sakai.mci4me.at/portal/relogin` gesendet.
+
+Ist die Verbindung getrennt, meldet sich die App beim Start, beim Zurückwechseln, nach
+Wiederherstellung des Netzes und jede Minute selbst wieder an, höchstens alle 30
+Sekunden. Lehnt Sakai das gespeicherte Passwort ab, markiert die App es dauerhaft als
+abgelehnt und versucht es auch nach einem Neustart nicht erneut, damit das Konto nicht
+gesperrt wird; sie bittet stattdessen um neue Zugangsdaten. „Ausschalten“ und „Verbindung trennen“ löschen den Eintrag. Der Eintrag
+ist an die App gebunden, aber nicht zusätzlich per Touch ID geschützt: Das erfordert
+eine Signatur mit Apple-Developer-Team, die der lokale Build nicht hat.
 
 Importiert werden Kursübersichten, verfügbare Lessons, Ankündigungen der letzten
 365 Tage und Ressourcenlisten der ausgewählten Sites. Die separate Seiten- und
