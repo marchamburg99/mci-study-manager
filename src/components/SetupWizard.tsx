@@ -132,8 +132,8 @@ export function SetupWizard({ cfg, disabled, onSave, onClose }: {
               <p>Sakai-Unterlagen holst du nach der Einrichtung so in die App:</p>
               <ol>
                 <li>Links <strong>Studienwissen</strong> öffnen und <strong>Bei Sakai anmelden</strong> wählen.</li>
-                <li>Im Sakai-Fenster normal anmelden. Das Passwort bleibt auf der Sakai-Seite.</li>
-                <li><strong>Auf diesem Mac angemeldet bleiben</strong> aktivieren, damit die Sitzung einen Neustart übersteht.</li>
+                <li>Im Sakai-Fenster normal anmelden.</li>
+                <li>Optional <strong>Automatisch anmelden</strong> aktivieren: Sakai beendet Sitzungen nach einer Stunde ohne Aktivität, die App meldet sich dann selbst wieder an. Das Passwort liegt dafür im macOS-Schlüsselbund.</li>
                 <li>Kurse den Fächern zuordnen und <strong>Jetzt abrufen</strong> wählen. Mit der Automatik bleibt alles aktuell.</li>
               </ol>
               <p>Dieser Schritt ist optional. Kalender und Notizen funktionieren auch ohne Sakai.</p>
