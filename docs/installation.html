@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>MCI Studien-Manager {{VERSION}} – Installationsanleitung</title>
+<style>
+  @page { size: A4; margin: 18mm 18mm 20mm; }
+  :root { --ink: #1c293b; --muted: #526176; --accent: #0066cc; --line: #d7dfe9; --soft: #f2f6fb; --warn: #945000; --warn-bg: #fff4e0; }
+  * { box-sizing: border-box; }
+  body { margin: 0; color: var(--ink); font: 10.5pt/1.5 -apple-system, "SF Pro Text", "Helvetica Neue", Arial, sans-serif; }
+  h1 { font-size: 22pt; letter-spacing: -0.02em; margin: 0 0 2mm; }
+  h2 { font-size: 13.5pt; margin: 9mm 0 3mm; padding-top: 3mm; border-top: 1px solid var(--line); break-after: avoid; }
+  h3 { font-size: 11pt; margin: 5mm 0 2mm; break-after: avoid; }
+  p { margin: 0 0 2.5mm; }
+  .lead { color: var(--muted); font-size: 11pt; margin-bottom: 5mm; }
+  .meta { display: flex; gap: 6mm; color: var(--muted); font-size: 9pt; margin-bottom: 6mm; }
+  ol.steps { counter-reset: step; list-style: none; padding: 0; margin: 0 0 3mm; }
+  ol.steps > li { counter-increment: step; position: relative; padding: 0 0 3mm 10mm; break-inside: avoid; }
+  ol.steps > li::before { content: counter(step); position: absolute; left: 0; top: 0.2mm; width: 6.5mm; height: 6.5mm; border-radius: 50%;
+    background: var(--accent); color: #fff; font-weight: 700; font-size: 9pt; text-align: center; line-height: 6.5mm; }
+  ul { margin: 0 0 3mm; padding-left: 5mm; }
+  li + li { margin-top: 1mm; }
+  code, .code { font: 9pt/1.4 ui-monospace, "SF Mono", Menlo, monospace; background: var(--soft); border: 1px solid var(--line); border-radius: 4px; padding: 0.3mm 1.2mm; }
+  .code { display: block; padding: 2mm 3mm; margin: 1.5mm 0 2.5mm; white-space: pre-wrap; word-break: break-all; }
+  .box { border: 1px solid var(--line); background: var(--soft); border-radius: 6px; padding: 3mm 4mm; margin: 3mm 0; break-inside: avoid; }
+  .warn { border-color: #f0c98a; background: var(--warn-bg); }
+  .warn strong:first-child { color: var(--warn); }
+  .path { font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; margin: 2mm 0 3mm; font-size: 9.5pt; }
+  th, td { text-align: left; vertical-align: top; padding: 1.8mm 2mm; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; }
+  .small { color: var(--muted); font-size: 9pt; }
+</style>
+</head>
+<body>
+
+<h1>MCI Studien-Manager</h1>
+<p class="lead">Installationsanleitung für MCiT-Studierende. Die App zeigt deinen Stundenplan, öffnet das passende Fach mit Notizen und Folien und holt Sakai-Unterlagen automatisch auf deinen Mac.</p>
+<div class="meta"><span>Version {{VERSION}}</span><span>Stand {{DATE}}</span><span>Nur Mac mit Apple-Chip (M1 oder neuer)</span></div>
+
+<h2>Im Paket</h2>
+<table>
+  <tr><th>Datei</th><th>Wofür</th></tr>
+  <tr><td><code>MCI-Studien-Manager-{{VERSION}}.dmg</code></td><td>Das Installationsprogramm</td></tr>
+  <tr><td><code>Installationsanleitung.pdf</code></td><td>Diese Anleitung</td></tr>
+  <tr><td><code>Pruefsumme-SHA256.txt</code></td><td>Zum Prüfen, dass die Datei unverändert ist</td></tr>
+</table>
+<p class="small">Prüfst du deinen Mac-Typ: Apple-Menü  → „Über diesen Mac“. Steht dort „Chip Apple M…“, passt die App. Bei „Prozessor Intel“ läuft sie leider nicht.</p>
+
+<h2>1. Download prüfen (empfohlen)</h2>
+<p>Die App ist nicht über den App Store verteilt. Mit der Prüfsumme stellst du sicher, dass du genau die Datei von deinem Kommilitonen hast. Öffne das Programm <span class="path">Terminal</span> (Spotlight: <code>⌘ Leertaste</code>, „Terminal“) und tippe <code>shasum -a 256 </code> mit Leerzeichen am Ende, ziehe dann die DMG-Datei ins Terminal-Fenster und drücke Enter.</p>
+<p>Die angezeigte Zeichenfolge muss exakt so beginnen und enden:</p>
+<span class="code">{{SHA256}}</span>
+<p>Weicht sie ab, die Datei löschen und nicht öffnen.</p>
+
+<h2>2. Installieren</h2>
+<ol class="steps">
+  <li>Doppelklick auf <code>MCI-Studien-Manager-{{VERSION}}.dmg</code>. Ein Fenster mit dem App-Symbol und dem Ordner „Applications“ öffnet sich.</li>
+  <li>Das Symbol <span class="path">study-manager</span> auf den Ordner <span class="path">Applications</span> ziehen.</li>
+  <li>Das DMG-Fenster schließen und im Finder links beim Laufwerk „study-manager“ auf ⏏ klicken.</li>
+</ol>
+
+<h2>3. Erster Start</h2>
+<p>Die App stammt nicht von einem bei Apple registrierten Entwickler. macOS blockiert deshalb den ersten Start. Das ist bei privat weitergegebenen Apps normal und nur einmal nötig.</p>
+<ol class="steps">
+  <li>Im Programme-Ordner doppelt auf <span class="path">study-manager</span> klicken. macOS meldet, dass die App nicht geöffnet wurde. Auf <span class="path">Fertig</span> klicken.</li>
+  <li><span class="path">Systemeinstellungen → Datenschutz &amp; Sicherheit</span> öffnen und ganz nach unten scrollen. Bei „study-manager wurde blockiert“ auf <span class="path">Dennoch öffnen</span> klicken und mit Passwort oder Touch ID bestätigen.</li>
+  <li>App erneut starten und <span class="path">Öffnen</span> wählen.</li>
+</ol>
+<div class="box warn"><strong>Meldung „ist beschädigt“?</strong> Dann ist der Knopf „Dennoch öffnen“ nicht verfügbar. Nur wenn die Prüfsumme aus Schritt 1 stimmt, im Terminal einmal eingeben:
+<span class="code">xattr -dr com.apple.quarantine /Applications/study-manager.app</span>
+Danach startet die App normal.</div>
+
+<h2>4. Einrichtung in der App</h2>
+<p>Beim ersten Start führt ein Assistent in fünf Schritten durch die Einrichtung:</p>
+<ol class="steps">
+  <li><strong>Studienordner wählen</strong>, zum Beispiel einen neuen Ordner <code>MCI</code> in deinem Benutzerordner. Wenn du Obsidian nutzt, kann das dein Vault sein. Der Semester-Ordner ist für MCiT 26 vorausgefüllt.</li>
+  <li><strong>Kalender-Link einfügen.</strong> Im MCI-Stundenplan gibt es eine Funktion, um den persönlichen Stundenplan als Kalender zu abonnieren (iCal/Webcal). Diesen Link kopieren und einfügen. Er beginnt meist mit <code>https://</code> oder <code>webcal://</code>.</li>
+  <li><strong>Sakai</strong> ist optional und wird nach der Einrichtung verbunden (siehe unten).</li>
+  <li><strong>KI-Assistenten</strong>: Der Assistent zeigt, wie Claude, ChatGPT &amp; Co. mit deinem Studienordner arbeiten, und bietet einen kopierbaren Einstieg.</li>
+</ol>
+<div class="box"><strong>Wichtig:</strong> Der Kalender-Link enthält einen privaten Schlüssel zu deinem Stundenplan. Nicht in Gruppenchats teilen.</div>
+
+<h2>5. Sakai verbinden</h2>
+<ol class="steps">
+  <li>Links <span class="path">Studienwissen</span> öffnen und <span class="path">Bei Sakai anmelden</span> wählen. Im Sakai-Fenster normal anmelden.</li>
+  <li>Kurse prüfen, den Fächern zuordnen und <span class="path">Jetzt abrufen</span> wählen. Mit der Automatik bleibt alles aktuell, solange die App offen ist.</li>
+  <li>Optional <span class="path">Automatisch anmelden</span> aktivieren: Sakai beendet Sitzungen nach einer Stunde ohne Aktivität. Mit dieser Option meldet sich die App morgens und nach dem Aufwachen selbst wieder an.</li>
+</ol>
+<p class="small">Für die automatische Anmeldung speichert die App deine MCI-E-Mail und dein Sakai-Passwort im macOS-Schlüsselbund dieses Macs, nicht in der Cloud. Sie werden nur an sakai.mci4me.at gesendet. Lehnt Sakai das Passwort ab (etwa nach einer Passwortänderung), versucht die App es nicht erneut und bittet um neue Eingabe. „Ausschalten“ oder „Verbindung trennen“ löscht die Daten wieder.</p>
+
+<h2>Update auf eine neue Version</h2>
+<ol class="steps">
+  <li>Den Studien-Manager beenden (<code>⌘ Q</code>).</li>
+  <li>Die neue DMG wie oben prüfen, öffnen und die App erneut auf <span class="path">Applications</span> ziehen. Bei der Frage „Ersetzen“ bestätigen.</li>
+  <li>App starten. Falls macOS erneut blockiert, Schritt 3 wiederholen.</li>
+</ol>
+<p>Deine Einstellungen, Notizen und Sakai-Daten bleiben erhalten. Sie liegen nicht in der App, sondern in deinem Studienordner und in den App-Daten deines Benutzerkontos.</p>
+<div class="box"><strong>Schlüsselbund-Abfrage nach dem Update:</strong> Nutzt du „Angemeldet bleiben“ oder „Automatisch anmelden“, fragt macOS nach einem Update einmal, ob study-manager auf den Schlüsselbund zugreifen darf. Mit deinem Mac-Passwort bestätigen und <span class="path">Immer erlauben</span> wählen.</div>
+
+<h2>Deinstallieren</h2>
+<ul>
+  <li>In der App unter Studienwissen <span class="path">Verbindung trennen</span> wählen. Das löscht gespeicherte Sakai-Sitzung und Zugangsdaten aus dem Schlüsselbund.</li>
+  <li><span class="path">study-manager</span> aus dem Programme-Ordner in den Papierkorb ziehen.</li>
+  <li>Dein Studienordner bleibt erhalten. Er gehört dir und kann bei Bedarf manuell gelöscht werden.</li>
+</ul>
+
+<h2>Datenschutz in Kürze</h2>
+<ul>
+  <li>Alles bleibt lokal auf deinem Mac. Es gibt keinen Server, kein Konto und keine Weitergabe an Dritte.</li>
+  <li>Die App liest von Sakai nur Kursübersichten, Lerninhalte, Ankündigungen und Unterlagen. Keine Nachrichten, Noten oder Abgaben, und sie sendet nichts an Sakai.</li>
+  <li>KI-Assistenten sehen nur, was du ihnen selbst gibst.</li>
+</ul>
+
+<h2>Hilfe</h2>
+<table>
+  <tr><th>Problem</th><th>Lösung</th></tr>
+  <tr><td>„Einstellungen prüfen“ beim Start</td><td>Einstellungen (Zahnrad-Symbol) öffnen → Kalender-Link und Studienordner prüfen → Speichern.</td></tr>
+  <tr><td>Keine Termine sichtbar</td><td>Kalender-Link neu aus dem MCI-Stundenplan kopieren. Prüfen, ob eine Internetverbindung besteht.</td></tr>
+  <tr><td>„Sakai hat die Anmeldung abgelehnt“</td><td>Benutzername ist die MCI-E-Mail, z. B. <code>ab1234@mci4me.at</code>. Passwort prüfen.</td></tr>
+  <tr><td>Einrichtung erneut ansehen</td><td>Einstellungen → <span class="path">Einführung öffnen</span>.</td></tr>
+</table>
+<p class="small">Fragen und Fehler bitte direkt an den Kommilitonen melden, von dem du das Paket hast.</p>
+
+</body>
+</html>

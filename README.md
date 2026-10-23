@@ -30,14 +30,14 @@ Die App enthält keine persönlichen Zugangsdaten. Beim ersten Start öffnen sic
 Einstellungen; dort trägt jede Person ihren eigenen Kalender-Abo-Link und ihren
 Studienordner ein. Die Sakai-Anmeldung bleibt ebenfalls lokal auf dem eigenen Mac.
 
-### Installation für Mitstudierende (MCiT)
+### Weitergabe an Mitstudierende (MCiT)
 
-1. Die `.dmg` öffnen und `study-manager` in den Programme-Ordner ziehen.
-2. Weil die App nicht von Apple notarisiert ist, blockiert macOS den ersten Start.
-   Einmalig im Terminal ausführen:
-   `xattr -dr com.apple.quarantine /Applications/study-manager.app`
-3. App starten, in den Einstellungen den eigenen Kalender-Link des MCI-Stundenplans
-   einfügen, Studienordner wählen und speichern.
+`scripts/share-package.sh` baut die App und erzeugt `share/MCI-Studien-Manager-<Version>.zip`
+mit Installer-DMG, `Installationsanleitung.pdf` (aus `docs/installation.html`) und
+SHA-256-Prüfsumme. Die ZIP lässt sich per OneDrive, Teams oder USB-Stick weitergeben;
+ein GitHub-Konto ist für Mitstudierende nicht nötig. Für ein Update vorher die Version
+in `package.json`, `src-tauri/Cargo.toml` und `src-tauri/tauri.conf.json` erhöhen und
+das Skript erneut ausführen. `--skip-build` verpackt den vorhandenen Build.
 
 Der Build läuft nur auf Macs mit Apple Silicon (M1 und neuer). Beim ersten Start führt
 ein Einrichtungsassistent durch Studienordner, Kalender-Link, Sakai und KI-Nutzung;
