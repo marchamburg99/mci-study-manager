@@ -40,8 +40,13 @@ in `package.json`, `src-tauri/Cargo.toml` und `src-tauri/tauri.conf.json` erhöh
 das Skript erneut ausführen. `--skip-build` verpackt den vorhandenen Build.
 
 Der Build läuft nur auf Macs mit Apple Silicon (M1 und neuer). Beim ersten Start führt
-ein Einrichtungsassistent durch Studienordner, Kalender-Link, Sakai und KI-Nutzung;
-er lässt sich später über Einstellungen → „Einführung öffnen“ erneut aufrufen.
+ein Einrichtungsassistent durch Obsidian, Studienordner, Kalender-Link und Sakai. Er erkennt
+ein installiertes Obsidian (`/Applications` oder `~/Applications`) und bietet sonst den offiziellen
+Download an. „Einrichten & synchronisieren“ legt den Vault inklusive KI-Anleitung an; danach
+zeigt er, wie man den Ordner in Obsidian einmal als Vault öffnet, und bietet „Obsidian öffnen“
+und „Im Finder zeigen“. Obsidian kann einen noch unbekannten Ordner nicht per Link als Vault
+öffnen, deshalb bleibt dieser eine Klick in Obsidian. Der Assistent lässt sich später über
+Einstellungen → „Einführung öffnen“ erneut aufrufen.
 
 ### Mit KI-Assistenten arbeiten
 

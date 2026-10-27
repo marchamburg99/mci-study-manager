@@ -19,11 +19,13 @@ export function useStudyCalendar(canSync: () => boolean) {
   const lastAttempt = useRef(0);
   const generation = useRef(0);
 
-  const refresh = useCallback(async (config: AppConfig, force = false) => {
-    if (busy.current || !desktop) return;
+  /** Resolves to the shown error message when this sync failed, otherwise null. */
+  const refresh = useCallback(async (config: AppConfig, force = false): Promise<string | null> => {
+    if (busy.current || !desktop) return null;
     if (!canSync()) {
-      setError("Synchronisation pausiert: Bitte zuerst die ungesicherten Notizänderungen speichern.");
-      return;
+      const message = "Synchronisation pausiert: Bitte zuerst die ungesicherten Notizänderungen speichern.";
+      setError(message);
+      return message;
     }
     busy.current = true;
     const version = generation.current;
@@ -31,9 +33,9 @@ export function useStudyCalendar(canSync: () => boolean) {
     setSyncing(true);
     try {
       const result = await syncCalendar(config, force);
-      if (version !== generation.current) return;
+      if (version !== generation.current) return null;
       if (!canSync()) throw new Error("Der neue Plan wird erst nach dem Sichern deiner Notiz übernommen. Danach bitte erneut synchronisieren.");
-      if (!current.current || configContextKey(current.current) !== configContextKey(config)) return;
+      if (!current.current || configContextKey(current.current) !== configContextKey(config)) return null;
       let persistenceWarning: string | null = null;
       try { saveConfig(result.config); }
       catch { persistenceWarning = "Der Plan ist verfügbar, aber der Sync-Zeitpunkt konnte nicht in den App-Einstellungen gespeichert werden."; }
@@ -42,8 +44,12 @@ export function useStudyCalendar(canSync: () => boolean) {
       setEvents(result.events);
       setState(result.state);
       setError([result.warning, persistenceWarning].filter(Boolean).join(" ") || null);
+      return null;
     } catch (cause) {
-      if (version === generation.current) setError(`Stundenplan konnte nicht geladen werden: ${errorMessage(cause)}`);
+      if (version !== generation.current) return null;
+      const message = `Stundenplan konnte nicht geladen werden: ${errorMessage(cause)}`;
+      setError(message);
+      return message;
     } finally {
       if (version === generation.current) {
         busy.current = false;
@@ -119,7 +125,7 @@ export function useStudyCalendar(canSync: () => boolean) {
     setSyncing(true);
     try {
       await apiSetVaultRoot(next.basisPfad);
-      if (version !== generation.current) return;
+      if (version !== generation.current) return null;
       try {
         saveConfig(next);
       } catch (cause) {
@@ -140,12 +146,12 @@ export function useStudyCalendar(canSync: () => boolean) {
         setSyncing(false);
       }
     }
-    if (version === generation.current) await refresh(next, true);
+    return version === generation.current ? refresh(next, true) : null;
   }, [canSync, desktop, refresh]);
 
   const refreshNow = useCallback(() => {
     if (current.current && ready) return refresh(current.current, true);
-    return Promise.resolve();
+    return Promise.resolve(null);
   }, [ready, refresh]);
 
   return { cfg, events, syncing, ready, desktop, error, state, refreshNow, applyConfig };

@@ -605,7 +605,7 @@ export default function App() {
           cfg={cfg}
           disabled={!desktop || syncing}
           onClose={() => setSettingsOpen(false)}
-          onSave={applyConfig}
+          onSave={async (next) => { await applyConfig(next); }}
           onOpenSetup={() => { setSettingsOpen(false); setSetupOpen(true); }}
         />
       )}

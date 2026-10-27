@@ -99,12 +99,35 @@ describe("calendar hook lifecycle", () => {
     ports.saveConfig.mockClear();
     const activation = deferred();
     ports.apiSetVaultRoot.mockReturnValueOnce(activation.promise);
-    let operation: Promise<void>;
+    let operation: Promise<string | null>;
     await act(async () => { operation = latest.applyConfig({ ...cfg, semester: "Semester-2" }); });
     await act(async () => { root!.unmount(); root = null; });
     await act(async () => { activation.resolve(); await operation!; });
     expect(ports.saveConfig).not.toHaveBeenCalled();
     expect(ports.syncCalendar).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed first sync of a saved config to the caller", async () => {
+    await mount();
+    ports.syncCalendar.mockRejectedValueOnce(new Error("HTTP 404"));
+
+    let result: string | null = null;
+    await act(async () => { result = await latest.applyConfig({ ...cfg, semester: "Semester-2" }); });
+
+    expect([result, latest.error, latest.cfg?.semester]).toEqual([
+      "Stundenplan konnte nicht geladen werden: HTTP 404",
+      "Stundenplan konnte nicht geladen werden: HTTP 404",
+      "Semester-2",
+    ]);
+  });
+
+  it("resolves applyConfig to null after a successful sync", async () => {
+    await mount();
+
+    let result: string | null = "unset";
+    await act(async () => { result = await latest.applyConfig({ ...cfg, semester: "Semester-2" }); });
+
+    expect(result).toBeNull();
   });
 
   it("initializes once in StrictMode despite the replayed mount", async () => {

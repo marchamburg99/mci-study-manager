@@ -3,7 +3,7 @@ mod sakai;
 mod sakai_credentials;
 mod vault;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 use tauri::{Manager, State};
 use tauri_plugin_dialog::DialogExt;
@@ -167,6 +167,28 @@ fn external_url(value: &str) -> Result<String, String> {
     Ok(url.to_string())
 }
 
+fn obsidian_app() -> Option<PathBuf> {
+    let user_apps = std::env::var_os("HOME").map(|home| PathBuf::from(home).join("Applications"));
+    [Some(PathBuf::from("/Applications")), user_apps]
+        .into_iter()
+        .flatten()
+        .map(|dir| dir.join("Obsidian.app"))
+        .find(|app| app.is_dir())
+}
+
+#[tauri::command]
+fn obsidian_installed() -> bool {
+    obsidian_app().is_some()
+}
+
+#[tauri::command]
+fn open_obsidian(app: tauri::AppHandle) -> Result<(), String> {
+    let path = obsidian_app().ok_or("Obsidian ist nicht installiert")?;
+    app.opener()
+        .open_path(path.to_string_lossy(), None::<&str>)
+        .map_err(|_| "Obsidian konnte nicht geöffnet werden".into())
+}
+
 #[tauri::command]
 fn reveal_vault_path(
     path: String,
@@ -258,6 +280,8 @@ pub fn run() {
             open_knowledge_file,
             open_vault_file,
             open_external_url,
+            obsidian_installed,
+            open_obsidian,
             reveal_vault_path,
             delete_file
         ])

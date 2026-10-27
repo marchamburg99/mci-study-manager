@@ -139,6 +139,10 @@ export const apiOpenVaultFile = (path: string): Promise<void> =>
 export const apiRevealVaultPath = (path: string): Promise<void> =>
   invoke("reveal_vault_path", { path });
 
+export const apiObsidianInstalled = (): Promise<boolean> => invoke("obsidian_installed");
+
+export const apiOpenObsidian = (): Promise<void> => invoke("open_obsidian");
+
 export const apiOpenExternalUrl = (url: string): Promise<void> =>
   invoke("open_external_url", { url });
 
