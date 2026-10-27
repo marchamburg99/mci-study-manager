@@ -278,8 +278,8 @@ diesem Update ist deshalb eine Verbindung zum Kalender nötig.
   Sem01-MCiT26-IM/
     .mci-manager/event-paths.json <- Dauerhafte UID-Zuordnung, Dateinamen und reservierte Pfade
     _Semester.md           <- MOC: alle Fächer + offene Termine
-    09-databases-ilv/
-      Databases.md         <- MOC: alle Termine, offene Fragen, Prüfungsthemen
+    07-databases-ilv/      <- ein Ordner pro Fach und Lehrform
+      Databases ILV.md     <- MOC: alle Termine, offene Fragen, Prüfungsthemen
       2026-10-05_databases-ilv/
         2026-10-05 0900 Databases.md <- Notiz (Frontmatter: vorbereitet/nachbereitet)
         docs/              <- Drag&Drop landet hier (+ ![[docs/…]]-Verweis)
@@ -321,10 +321,14 @@ generierten Bereich, persönliche Ergänzungen bleiben erhalten.
 Einmal zugeordnete Terminpfade bleiben bei Verschiebungen und Feed-Löschungen
 reserviert. Neue Fächer nummerieren vorhandene Ordner nicht um. Bestehende Notizen
 werden über ihre UID übernommen, nicht verschoben. Dateinamen bleiben auch bei
-späteren Titel- oder Terminänderungen stabil. Fächer werden pro Semester über
-LV-Nummer und Lehrform zusammengefasst, nicht nach Dozent. Ohne LV-Nummer gelten
-normalisierter Fachname und Lehrform. Selbststudium gehört zum jeweiligen Fach;
-der ursprüngliche Termintitel bleibt erhalten. Bei widersprüchlichen UIDs
+späteren Titel- oder Terminänderungen stabil. Ein Fach ist pro Semester über den
+LV-Stamm bestimmt (ohne LV-Nummer über den normalisierten Fachnamen), nicht nach
+Dozent; Sakai-Zuordnung, Ausschlüsse und `fach/…`-Tags gelten pro Fach. Im Vault
+bekommt jede Lehrform eines Fachs ihren eigenen Ordner und ihre eigene Übersicht,
+etwa `02-coding-ue/` mit `Coding UE.md` und `03-coding-vo/` mit `Coding VO.md`,
+weil UE und VO unterschiedliche Lehrende haben können. Hat ein Fach aus einer
+älteren Version nur eine Lehrform, behält es Ordner und Übersicht. Selbststudium
+gehört zur Lehrform seines Fachs; der ursprüngliche Termintitel bleibt erhalten. Bei widersprüchlichen UIDs
 oder manuell verschobenen bereits indizierten Notizen stoppt die Zuordnung mit
 einer Fehlermeldung. Den Index deshalb zusammen mit dem Vault sichern.
 
@@ -370,6 +374,29 @@ Der Pfadindex verwendet ab Version 0.2.1 Format 2; ältere App-Versionen können
 diesen nicht lesen. Vor einem Downgrade den vollständigen vorherigen Vault-Stand
 wiederherstellen, nicht nur den Index. Fach- und Notizdateien nicht unabhängig
 vom Index manuell umbenennen.
+
+### Fachordner zusammenführen (lokale Wartung)
+
+Ältere Versionen haben für dasselbe Fach mehrere nummerierte Ordner angelegt, teils
+mit Dozentennamen. `scripts/consolidate-folders.mjs` führt sie auf genau einen Ordner
+pro Fach und Lehrform mit Namen wie `07-databases-ilv` zusammen. Terminordner samt
+`docs/` und lose Dateien ziehen in den bisher vollsten Ordner, leere Dubletten gehen
+in den Vault-Papierkorb, Links in Notizen und der Terminpfad-Index werden angepasst.
+Ausgeschlossene Fächer, unbekannte Ordner und alles, was eine vorhandene Datei
+überschreiben würde, bleiben unverändert. Sakai-Live-Notizen sind geschützt und
+erhalten ihre neuen Links beim nächsten Sakai-Abruf.
+
+```bash
+node scripts/consolidate-folders.mjs --vault /absoluter/Vault --semester Sem01 --calendar /absoluter/Vault/.mci-manager/calendar-<hash>.ics --dry-run
+```
+
+Der Probelauf zeigt Zielordner, Verschiebungen, Papierkorb und angepasste Notizen.
+Zum Anwenden zuerst alle Notiz-Entwürfe in der App sichern (Entwürfe hängen am
+Terminpfad), dann study-manager beenden und Obsidian schließen und `--dry-run` durch
+`--apply --backup /absolutes/neues/Backup` ersetzen. Das Skript sichert den kompletten
+Vault unter `original/`, schreibt `plan.json` und `journal.jsonl` und prüft am Ende, dass
+jede Datei mit identischen Bytes vorhanden ist. Zur Wiederherstellung den gesamten Stand
+aus `original/` verwenden.
 
 ### Bestehenden Vault migrieren (lokale Wartung)
 

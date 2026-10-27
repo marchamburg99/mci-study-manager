@@ -10,11 +10,11 @@ import { parseIcs } from "../src/lib/ical.ts";
 import { planVaultMigration } from "../src/lib/vaultMigration.ts";
 
 const execFileAsync = promisify(execFile);
-const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
-const inside = (parent, child) => child === parent || child.startsWith(`${parent}${path.sep}`);
-const key = (value) => value.normalize("NFC").toLowerCase();
+export const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
+export const inside = (parent, child) => child === parent || child.startsWith(`${parent}${path.sep}`);
+export const key = (value) => value.normalize("NFC").toLowerCase();
 
-function refuse(message) {
+export function refuse(message) {
   throw new Error(`Migration abgebrochen: ${message}`);
 }
 
@@ -42,7 +42,7 @@ function argumentsFor(argv) {
   return options;
 }
 
-async function noSymlinkPath(absolute, allowMissingLeaf = false) {
+export async function noSymlinkPath(absolute, allowMissingLeaf = false) {
   const resolved = path.resolve(absolute);
   const parsed = path.parse(resolved);
   let current = parsed.root;
@@ -65,7 +65,7 @@ const signature = (stat) => ({ size: Number(stat.size), mtime: stat.mtimeNs.toSt
   ino: stat.ino.toString(), dev: stat.dev.toString(), mode: Number(stat.mode) });
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
-async function inspectFile(absolute, text = false) {
+export async function inspectFile(absolute, text = false) {
   const handle = await open(absolute, constants.O_RDONLY | constants.O_NOFOLLOW);
   try {
     const before = await handle.stat({ bigint: true });
@@ -87,7 +87,7 @@ async function inspectFile(absolute, text = false) {
   } finally { await handle.close(); }
 }
 
-async function snapshot(vault, semester) {
+export async function snapshot(vault, semester) {
   const entries = {};
   const texts = new Map();
   const seen = new Set();
@@ -113,7 +113,7 @@ async function snapshot(vault, semester) {
   return { entries, texts };
 }
 
-async function appsClosed() {
+export async function appsClosed() {
   if (process.platform !== "darwin") return;
   const { stdout } = await execFileAsync("/bin/ps", ["-axo", "comm="], { maxBuffer: 8 * 1024 * 1024 });
   if (stdout.split("\n").some((command) => /^(?:obsidian(?: helper.*)?|study[-_ ]manager)(?:\.app)?$/i.test(path.basename(command.trim())))) {
@@ -121,13 +121,13 @@ async function appsClosed() {
   }
 }
 
-async function exclusiveWrite(file, content, mode = 0o600) {
+export async function exclusiveWrite(file, content, mode = 0o600) {
   const handle = await open(file, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, mode);
   try { await handle.writeFile(content); await handle.sync(); }
   finally { await handle.close(); }
 }
 
-async function makeParents(root, rel) {
+export async function makeParents(root, rel) {
   let current = root;
   for (const part of path.dirname(rel).split(path.sep).filter((part) => part !== ".")) {
     current = path.join(current, part);
@@ -149,7 +149,7 @@ async function assertSnapshot(vault, semester, expected) {
   if (!same(actual.entries, expected)) refuse("Vault wurde seit der Planung verändert.");
 }
 
-async function backupDirectory(requested, vault) {
+export async function backupDirectory(requested, vault) {
   const backup = await noSymlinkPath(requested, true);
   if (inside(key(vault), key(backup)) || inside(key(backup), key(vault))
     || inside(key(backup), key(process.cwd())) || key(backup) === key(homedir())) {
@@ -166,7 +166,7 @@ async function backupDirectory(requested, vault) {
   return backup;
 }
 
-async function backupOriginal(vault, backup, entries) {
+export async function backupOriginal(vault, backup, entries) {
   const destination = path.join(backup, "original");
   await mkdir(destination, { mode: 0o700 });
   for (const [rel, record] of Object.entries(entries)) {
