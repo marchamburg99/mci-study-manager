@@ -52,6 +52,13 @@ Assistent enthält einen kopierbaren Einstieg, der die Ordnerstruktur erklärt u
 automatisch erzeugten Sakai-Bereiche schützt. KI-Ergebnisse als eigene Dateien
 speichern und mit den Originalunterlagen prüfen.
 
+Die App legt dafür im Vault einmalig `AGENTS.md`, `CLAUDE.md` (bindet `AGENTS.md` ein),
+die Regelzweige unter `.agents/study/` und `.claude/settings.json` an. Claude Code, Codex
+und andere Agenten lesen sie automatisch, wenn der Vault der Arbeitsordner ist. Die
+Einstellungen sperren Bearbeitungen von `.mci-manager/`, `.obsidian/` und
+`Studium/Quellen/`. Vorhandene Dateien gleichen Namens werden nie überschrieben; eigene
+Anpassungen bleiben erhalten, spätere App-Versionen aktualisieren sie aber auch nicht.
+
 ### Sakai-Wissen in der App
 
 Das Fach bündelt Sakai-Informationen, Materialien, Zusammenfassungen und ergänzende
@@ -255,9 +262,14 @@ diesem Update ist deshalb eine Verbindung zum Kalender nötig.
 
 ```
 ~/MCI/
-  README.md                <- Dashboard (Dataview: vorbereiten/nachbereiten)
-  00-system/templates/     <- Notiz-Vorlagen (nur angelegt, nie überschrieben)
+  README.md                <- Dashboard (Obsidian Bases: vorbereiten/nachbereiten/Aufgaben)
+  AGENTS.md, CLAUDE.md     <- Einstieg für KI-Agenten (nur angelegt, nie überschrieben)
+  .agents/study/           <- Regelzweige für Planung, Lernen, Recherche, Arbeiten
+  .claude/settings.json    <- Schreibsperren für App-Zustand, Obsidian-Config, Original-PDFs
+  00-system/templates/     <- Notiz-Vorlagen, agent/ für Arbeitsauftrag, Lernplan usw.
+  00-system/views/         <- Termine.base, Aufgaben.base (Obsidian Bases, kein Plugin nötig)
   .obsidian/app.json       <- Minimal-Config (nur angelegt, .mci-manager excludet)
+  .obsidian/types.json     <- Eigenschaftstypen für termin und Status (nur angelegt)
   Sem01-MCiT26-IM/
     .mci-manager/event-paths.json <- Dauerhafte UID-Zuordnung, Dateinamen und reservierte Pfade
     _Semester.md           <- MOC: alle Fächer + offene Termine

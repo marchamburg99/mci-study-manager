@@ -1,0 +1,59 @@
+filters:
+  and:
+    - file.hasProperty("uid")
+    - file.hasProperty("termin")
+    - not:
+        - file.inFolder("00-system")
+properties:
+  fach:
+    displayName: Fach
+  typ:
+    displayName: Lehrform
+  termin:
+    displayName: Termin
+  vorbereitet:
+    displayName: Vorbereitet
+  nachbereitet:
+    displayName: Nachbereitet
+views:
+  - type: table
+    name: Vorbereiten
+    filters:
+      and:
+        - vorbereitet == false
+        - termin >= today()
+    order:
+      - termin
+      - fach
+      - typ
+      - file.name
+    sort:
+      - property: termin
+        direction: ASC
+    limit: 15
+  - type: table
+    name: Nachbereiten
+    filters:
+      and:
+        - nachbereitet == false
+        - termin <= today()
+    order:
+      - termin
+      - fach
+      - typ
+      - file.name
+    sort:
+      - property: termin
+        direction: DESC
+    limit: 15
+  - type: table
+    name: Alle Termine
+    order:
+      - termin
+      - fach
+      - typ
+      - vorbereitet
+      - nachbereitet
+    sort:
+      - property: termin
+        direction: ASC

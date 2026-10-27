@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "deny": [
+      "Edit(/.mci-manager/**)",
+      "Edit(/*/.mci-manager/**)",
+      "Edit(/.obsidian/**)",
+      "Edit(/Studium/Quellen/**)"
+    ]
+  }
+}

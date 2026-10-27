@@ -1,0 +1,8 @@
+{
+  "types": {
+    "termin": "date",
+    "vorbereitet": "checkbox",
+    "nachbereitet": "checkbox",
+    "abgerufen": "date"
+  }
+}

@@ -1,0 +1,20 @@
+filters:
+  and:
+    - type == "assignment"
+    - not:
+        - file.inFolder("00-system")
+properties:
+  status:
+    displayName: Status
+views:
+  - type: table
+    name: Offen
+    filters:
+      and:
+        - status != "submitted"
+    order:
+      - file.name
+      - status
+    sort:
+      - property: file.name
+        direction: ASC

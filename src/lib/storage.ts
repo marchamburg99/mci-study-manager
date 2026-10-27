@@ -6,6 +6,7 @@ import { buildFaecher, subjectName } from "./ical";
 import { normalizeCalendarUrl, validateConfig } from "./config";
 import { assignEventPaths, ownsIndexedNote, readIndex, validateNoteFile, validateRelativePath } from "./identity";
 import { subjectFileName } from "./filenames";
+import { VAULT_SCAFFOLD } from "./scaffold";
 import {
   MOC_END,
   MOC_START,
@@ -418,6 +419,14 @@ export async function ensureVault(cfg: AppConfig, events: StudyEvent[]): Promise
   await writeIfMissing(await join(cfg.basisPfad, ".obsidian", "app.json"), OBSIDIAN_APP_JSON);
   await writeIfMissing(await join(cfg.basisPfad, "00-system", "templates", "termin.md"), TERMIN_TEMPLATE_MD);
   await writeIfMissing(await join(cfg.basisPfad, "README.md"), buildVaultReadme({ semesterPath, semesterTag: stag }));
+  for (const file of VAULT_SCAFFOLD) {
+    try {
+      await writeIfMissing(await join(cfg.basisPfad, ...file.path), file.content);
+    } catch {
+      // Optional files: a user-managed path the vault guard rejects (e.g. a symlinked
+      // CLAUDE.md) or a concurrent create stays untouched and must not block the sync.
+    }
+  }
   await apiEnsureDir(semDir);
 
   await upsertMocBlock(
