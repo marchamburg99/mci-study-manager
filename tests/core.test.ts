@@ -44,10 +44,10 @@ describe("iCalendar normalization", () => {
       dozent: "FH-Prof. Dr. Anna, Example",
       lvNummer: "DB-101",
       start: "2026-10-05T07:00:00.000Z",
-      terminRel: "01-databases/2026-10-05_databases-ilv",
+      terminRel: "01-databases-ilv/2026-10-05_databases-ilv",
     });
     expect(events[1].terminRel).toBe(
-      "01-databases/2026-10-05_databases-ilv-1100",
+      "01-databases-ilv/2026-10-05_databases-ilv-1100",
     );
   });
 });

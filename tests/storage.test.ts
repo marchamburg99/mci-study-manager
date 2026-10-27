@@ -367,28 +367,34 @@ describe("legacy metadata migration", () => {
 describe("vault scaffold checked writes", () => {
   const lecture: StudyEvent = { ...event, uid: "lecture", typ: "VO", lvNummer: "2",
     terminRel: `${event.fachDir}/2026-09-23_coding-vo`, start: "2026-09-23T08:00:00.000Z", end: "2026-09-23T09:00:00.000Z" };
-  const fachPath = `/mock-vault/Sem01/${event.fachDir}/Coding.md`;
+  const fachPath = `/mock-vault/Sem01/${event.fachDir}/Coding UE.md`;
+  const lecturePath = `/mock-vault/Sem01/${event.fachDir}/Coding VO.md`;
+  const secondExercise: StudyEvent = { ...event, uid: "two", lvNummer: "1-UE",
+    terminRel: `${event.fachDir}/2026-09-29_coding-ue`, start: "2026-09-29T08:00:00.000Z", end: "2026-09-29T09:00:00.000Z" };
 
-  it("creates one subject MOC with both types and exact LVs while retaining event metadata", async () => {
+  it("creates one overview per course type with its own LV while retaining event metadata", async () => {
     await ensureVault(cfg, [event, lecture]);
     expect(files.has(notePath)).toBe(false);
     const exerciseNote = await ensureTermin(cfg, event);
     const lectureNote = await ensureTermin(cfg, lecture);
     const moc = files.get(fachPath)!;
+    const lectureMoc = files.get(lecturePath)!;
 
-    expect(parseNote(moc).data).toMatchObject({ fach: "Coding", typ: "UE / VO", lv: ["1", "2"] });
-    expect(moc).toContain("> UE / VO · Example · 1, 2\n");
-    expect(moc).toContain("# Coding\n\n[[Sem01/_Semester|Semester-Übersicht]]\n");
-    expect(moc.split("<!-- sm:list:start -->")[1].split("<!-- sm:list:end -->")[0]).not.toContain("_Semester");
-    expect(files.get("/mock-vault/Sem01/_Semester.md")).toContain("# Semester-Übersicht\n\n[[README|Studienübersicht]]\n");
-    expect(moc).toContain('WHERE uid AND contains(["1","2"], lv)\n');
+    expect(parseNote(moc).data).toMatchObject({ fach: "Coding UE", typ: "UE", lv: "1" });
+    expect(moc).toContain("# Coding UE\n\n[[Sem01/_Semester|Semester-Übersicht]]\n");
+    expect(moc).toContain('WHERE uid AND lv = "1"\n');
     expect(moc).toContain(`[[Sem01/${event.terminRel}/notes|`);
-    expect(moc).toContain(`[[Sem01/${lecture.terminRel}/notes|`);
+    expect(moc).not.toContain(lecture.terminRel);
+    expect(moc.split("<!-- sm:list:start -->")[1].split("<!-- sm:list:end -->")[0]).not.toContain("_Semester");
+    expect(lectureMoc).toContain('WHERE uid AND lv = "2"\n');
+    expect(lectureMoc).toContain(`[[Sem01/${lecture.terminRel}/notes|`);
+    expect(files.get("/mock-vault/Sem01/_Semester.md")).toContain("# Semester-Übersicht\n\n[[README|Studienübersicht]]\n");
+    expect(files.get("/mock-vault/Sem01/_Semester.md")).toMatch(/Coding UE[\s\S]*Coding VO/);
     expect(exerciseNote.data).toMatchObject({ typ: "UE", lv: "1" });
     expect(lectureNote.data).toMatchObject({ typ: "VO", lv: "2" });
   });
 
-  it("refreshes the generated query when a type is added and preserves personal material and originals", async () => {
+  it("adds a new course type as its own overview and leaves the existing one untouched", async () => {
     await ensureVault(cfg, [event]);
     const original = files.get(fachPath)!;
     const custom = `\n## Personal notes\nKeep this.\n\n\`\`\`\`text\n${original}\`\`\`\`\n`;
@@ -397,51 +403,50 @@ describe("vault scaffold checked writes", () => {
     calls = [];
 
     await ensureVault(cfg, [event, lecture]);
-    const next = files.get(fachPath)!;
 
-    expect(next).toContain('WHERE uid AND contains(["1","2"], lv)\n');
-    expect(next).toContain(`[[Sem01/${lecture.terminRel}/notes|`);
-    expect(next.endsWith(custom)).toBe(true);
-    expect(calls.find((call) => call.command === "save_text_file" && call.args.path === fachPath)?.args.expected).toBe(raw);
+    expect(files.get(fachPath)).toBe(raw);
+    expect(files.get(lecturePath)).toContain(`[[Sem01/${lecture.terminRel}/notes|`);
     calls = [];
     await ensureVault(cfg, [event, lecture]);
     expect(calls.some(({ command }) => command === "save_text_file")).toBe(false);
   });
 
   it("refreshes a stale query even when the generated list is already current", async () => {
-    await ensureVault(cfg, [event, lecture]);
+    await ensureVault(cfg, [event, secondExercise]);
     const current = files.get(fachPath)!;
-    files.set(fachPath, current.replace('contains(["1","2"], lv)', 'lv = "1"'));
+    expect(current).toContain('WHERE uid AND contains(["1","1-UE"], lv)\n');
+    files.set(fachPath, current.replace('contains(["1","1-UE"], lv)', 'lv = "1"'));
 
-    await ensureVault(cfg, [event, lecture]);
+    await ensureVault(cfg, [event, secondExercise]);
 
     expect(files.get(fachPath)).toBe(current);
   });
 
-  it("retains historical LV notes in the query when a course switches exclusively from UE to VO", async () => {
-    await ensureVault(cfg, [{ ...event, lvNummer: "CODE-UE" }]);
+  it("retains historical LV notes in the query when a course type changes its LV number", async () => {
+    await ensureVault(cfg, [event]);
     const original = files.get(fachPath)!;
     const personal = `\nMy notes\n\n\`\`\`\`text\n${original}\`\`\`\`\n`;
     files.set(fachPath, original + personal);
 
-    await ensureVault(cfg, [{ ...lecture, lvNummer: "CODE-VO" }]);
+    await ensureVault(cfg, [secondExercise]);
     const next = files.get(fachPath)!;
 
-    expect(next).toContain('WHERE uid AND contains(["CODE-UE","CODE-VO"], lv)\n');
-    expect(next).toContain(`[[Sem01/${lecture.terminRel}/notes|`);
+    expect(next).toContain('WHERE uid AND contains(["1","1-UE"], lv)\n');
+    expect(next).toContain(`[[Sem01/${secondExercise.terminRel}/notes|`);
     expect(next.endsWith(personal)).toBe(true);
     calls = [];
-    await ensureVault(cfg, [{ ...lecture, lvNummer: "CODE-VO" }]);
+    await ensureVault(cfg, [secondExercise]);
     expect(calls.some(({ command }) => command === "save_text_file")).toBe(false);
   });
 
-  it("keeps historical VO LVs when the current course offers only UE and ILV", async () => {
-    const exercise = { ...event, lvNummer: "MCI-B-1-COD-COD-UE" };
-    await ensureVault(cfg, [exercise, { ...lecture, lvNummer: "MCI-B-1-COD-COD-VO" }]);
+  it("keeps a former course type's overview when it leaves the calendar", async () => {
+    await ensureVault(cfg, [event, lecture]);
+    const lectureMoc = files.get(lecturePath)!;
 
-    await ensureVault(cfg, [exercise, { ...lecture, typ: "ILV", lvNummer: "MCI-B-1-COD-COD-ILV" }]);
+    await ensureVault(cfg, [event, { ...lecture, uid: "workshop", typ: "ILV", lvNummer: "3" }]);
 
-    expect(files.get(fachPath)).toContain('WHERE uid AND contains(["MCI-B-1-COD-COD-ILV","MCI-B-1-COD-COD-UE","MCI-B-1-COD-COD-VO"], lv)\n');
+    expect(files.get(lecturePath)).toBe(lectureMoc);
+    expect(files.get(`/mock-vault/Sem01/${event.fachDir}/Coding ILV.md`)).toContain('WHERE uid AND lv = "3"\n');
   });
 
   it("does not merge another course ID merely because its display name and module agree", async () => {
@@ -453,15 +458,15 @@ describe("vault scaffold checked writes", () => {
     expect(files.get(fachPath)).not.toContain("MCI-B-1-COD-OTHER-VO");
   });
 
-  it("keeps custom query conditions when new teaching types are synchronized", async () => {
+  it("keeps custom query conditions when new sessions are synchronized", async () => {
     await ensureVault(cfg, [event]);
     const customQuery = 'WHERE uid AND lv = "1" AND vorbereitet = false';
     files.set(fachPath, files.get(fachPath)!.replace('WHERE uid AND lv = "1"', customQuery));
 
-    await ensureVault(cfg, [event, lecture]);
+    await ensureVault(cfg, [event, { ...secondExercise, lvNummer: "1" }]);
 
     expect(files.get(fachPath)).toContain(`${customQuery}\n`);
-    expect(files.get(fachPath)).toContain(`[[Sem01/${lecture.terminRel}/notes|`);
+    expect(files.get(fachPath)).toContain(`[[Sem01/${secondExercise.terminRel}/notes|`);
   });
 
   it("does not claim a personal MOC that only contains a fenced generated original", async () => {
@@ -474,11 +479,11 @@ describe("vault scaffold checked writes", () => {
     expect(files.get(fachPath)).toBe(raw);
   });
 
-  it("retains concurrent subject edits when the generated query refresh conflicts", async () => {
+  it("retains concurrent subject edits when the generated list refresh conflicts", async () => {
     await ensureVault(cfg, [event]);
     beforeSave = (path) => { if (path === fachPath) files.set(path, "Concurrent personal edit"); };
 
-    await expect(ensureVault(cfg, [event, lecture])).rejects.toBe("CONFLICT");
+    await expect(ensureVault(cfg, [event, { ...secondExercise, lvNummer: "1" }])).rejects.toBe("CONFLICT");
     expect(files.get(fachPath)).toBe("Concurrent personal edit");
   });
 

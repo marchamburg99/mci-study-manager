@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { homeDir, join } from "@tauri-apps/api/path";
 import type { AppConfig, StudyEvent } from "./types";
 import { DEFAULT_CONFIG } from "./types";
-import { buildFaecher, subjectName } from "./ical";
+import { buildFolders, folderKey, folderTitle, subjectName } from "./ical";
 import { normalizeCalendarUrl, validateConfig } from "./config";
 import { assignEventPaths, ownsIndexedNote, readIndex, validateNoteFile, validateRelativePath } from "./identity";
 import { subjectFileName } from "./filenames";
@@ -285,8 +285,10 @@ export async function ensureTermin(
   let note = existing;
   if (note === null) {
     const index = snapshot.index;
-    const subjectDir = index.subjects[ev.fachKey] ?? ev.subjectDir ?? ev.terminRel.split("/")[0];
-    const subjectFile = index.subjectFiles[ev.fachKey] ?? ev.subjectFile ?? subjectFileName(subjectName(ev.fach));
+    // Indexes written before the per-course-type layout still key the overview by subject.
+    const key = index.subjects[folderKey(ev)] !== undefined ? folderKey(ev) : ev.fachKey;
+    const subjectDir = index.subjects[key] ?? ev.subjectDir ?? ev.terminRel.split("/")[0];
+    const subjectFile = index.subjectFiles[key] ?? ev.subjectFile ?? subjectFileName(folderTitle(ev.fach, ev.typ));
     validateRelativePath(subjectDir, 1);
     validateNoteFile(subjectFile);
     const raw = buildTerminNote({
@@ -413,11 +415,11 @@ export async function ensureVault(cfg: AppConfig, events: StudyEvent[]): Promise
   const semesterPath = cfg.semester;
   const semDir = await semesterRoot(cfg);
   const stag = semesterTag(cfg);
-  const faecher = buildFaecher(events);
+  const faecher = buildFolders(events);
   const byKey = new Map<string, StudyEvent[]>();
   for (const e of events) {
-    if (!byKey.has(e.fachKey)) byKey.set(e.fachKey, []);
-    byKey.get(e.fachKey)!.push(e);
+    if (!byKey.has(folderKey(e))) byKey.set(folderKey(e), []);
+    byKey.get(folderKey(e))!.push(e);
   }
 
   await writeIfMissing(await join(cfg.basisPfad, ".obsidian", "app.json"), OBSIDIAN_APP_JSON);
@@ -454,12 +456,12 @@ export async function ensureVault(cfg: AppConfig, events: StudyEvent[]): Promise
         lvNummern,
         fachDir: f.dir,
         semesterPath,
-        fachTag: fachTag(f.key),
+        fachTag: fachTag(f.fachKey),
         semesterTag: stag,
         termine: evs.map((e) => ({ start: e.start, terminRel: e.terminRel, summary: e.summary, noteFile: e.noteFile })),
       }),
       fachTerminRows(evs, semesterPath),
-      { fach: f.name, lvNummern, semesterPath },
+      { fach: subjectName(rep?.fach ?? f.name), lvNummern, semesterPath },
     );
   }
 }

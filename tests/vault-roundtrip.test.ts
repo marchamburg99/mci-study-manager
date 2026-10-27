@@ -8,7 +8,7 @@ import { ensureVault, readTerminNote, resolveEventPaths, saveTerminNote } from "
 afterEach(() => { clearMocks(); vi.unstubAllGlobals(); });
 
 describe("migrated vault application roundtrip", () => {
-  it.each([false, true])("syncs and edits migrated notes without duplicate files or moved UIDs (mixed types: %s)", async (mixed) => {
+  it.each([false, true])("syncs and edits migrated notes without duplicate overviews or moved UIDs (mixed types: %s)", async (mixed) => {
     const cfg = { basisPfad: "/mock", semester: "Sem01", icalUrl: "https://example.test/feed", refreshHours: 12, lastRefresh: null };
     const feed = `BEGIN:VCALENDAR
 BEGIN:VEVENT
@@ -71,7 +71,13 @@ END:VCALENDAR`;
     const resolved = await resolveEventPaths(cfg, events);
     await ensureVault(cfg, resolved);
     await ensureVault(cfg, await resolveEventPaths(cfg, events));
-    expect(files.get(`/mock/${indexPath}`)).toBe(plan.rawIndex);
+    const synced = JSON.parse(files.get(`/mock/${indexPath}`)!);
+    expect([synced.paths, synced.files]).toEqual([plan.index.paths, plan.index.files]);
+    if (!mixed) {
+      // A single-type subject keeps folder and overview; only its index key gains the course type.
+      expect([synced.subjects, synced.subjectFiles]).toEqual([
+        { [`${events[0].fachKey}-ilv`]: "01-first" }, { [`${events[0].fachKey}-ilv`]: "Databases.md" }]);
+    }
     expect(resolved.map((event) => event.terminRel)).toEqual(["01-first/day", "02-second/day"]);
     const loaded = await readTerminNote(cfg, resolved[0].terminRel);
     expect(loaded?.raw).toBe(note);
@@ -79,10 +85,11 @@ END:VCALENDAR`;
     expect((await readTerminNote(cfg, resolved[0].terminRel))?.data.custom).toEqual({ keep: true });
     expect([...files.keys()].some((path) => path.endsWith("/notes.md") || path.endsWith("/_Fach.md"))).toBe(false);
     if (mixed) {
+      // UE and VO of one subject get separate folders and overviews (decision D2).
       expect(resolved.map((event) => event.fachKey)).toEqual([events[0].fachKey, events[0].fachKey]);
-      expect(resolved.map((event) => event.subjectFile)).toEqual(["Coding.md", "Coding.md"]);
-      expect([...files.keys()].some((path) => /\/Coding (VO|UE)( \(\d+\))?\.md$/.test(path))).toBe(false);
-      expect(files.get("/mock/Sem01/01-first/Coding.md")).toContain('contains(["MCI-B-1-COD-COD-UE","MCI-B-1-COD-COD-VO"], lv)');
+      expect(resolved.map((event) => `${event.subjectDir}/${event.subjectFile}`)).toEqual(["01-first/Coding UE.md", "02-second/Coding VO.md"]);
+      expect(files.get("/mock/Sem01/01-first/Coding UE.md")).toContain('WHERE uid AND lv = "MCI-B-1-COD-COD-UE"');
+      expect(files.get("/mock/Sem01/02-second/Coding VO.md")).toContain('WHERE uid AND lv = "MCI-B-1-COD-COD-VO"');
     }
   });
 });

@@ -1,4 +1,4 @@
-import { slug } from "./ical.ts";
+import { folderKey, folderTitle, slug } from "./ical.ts";
 import { isSafeRelativePath, parseNote, toLocalDateKey, toLocalTimeKey } from "./notes.ts";
 import type { StudyEvent } from "./types";
 import { appointmentFileName, subjectFileName } from "./filenames.ts";
@@ -98,11 +98,21 @@ function noteSubject(data: Record<string, unknown>): string | undefined {
   return fach === typ || fach.endsWith(`-${typ}`) ? fach : slug(`${data.fach} ${data.typ}`);
 }
 
+/**
+ * `folder` gives every subject and course type its own folder and overview note (current app).
+ * `subject` keeps one folder per subject; the legacy notes.md migration plans with it.
+ */
+export type FolderLayout = "folder" | "subject";
+
 export function assignEventPaths(
   rawIndex: string | null,
   notes: Array<{ terminRel: string; content: string; fileName?: string }>,
   events: StudyEvent[],
+  layout: FolderLayout = "folder",
 ): { events: StudyEvent[]; raw: string } {
+  const keyOf = (event: StudyEvent) => layout === "folder" ? folderKey(event) : event.fachKey;
+  const titleOf = (event: StudyEvent) => layout === "folder" ? folderTitle(event.fach, event.typ) : event.fach;
+  const stemOf = (event: StudyEvent) => layout === "folder" ? folderStem(event) : slug(event.fach);
   const index = readIndex(rawIndex);
   const paths = new Map(Object.entries(index.paths));
   const subjects = new Map(Object.entries(index.subjects));
@@ -156,32 +166,52 @@ export function assignEventPaths(
     }
     files.set(note.terminRel, file);
     const legacyKey = noteSubject(data);
-    const key = byUid.get(data.uid)?.fachKey ?? legacyKey;
+    const event = byUid.get(data.uid);
+    const key = event ? keyOf(event) : legacyKey;
     if (key && !subjects.has(key)) subjects.set(key, note.terminRel.split("/")[0]);
+  }
+
+  // A subject taught in only one course type keeps its folder and overview from the
+  // earlier per-subject layout; the legacy entry moves so no second overview appears.
+  if (layout === "folder") {
+    const types = new Map<string, Set<string>>();
+    for (const event of events) types.set(event.fachKey, (types.get(event.fachKey) ?? new Set()).add(event.typ));
+    for (const event of events) {
+      const key = keyOf(event);
+      const legacyDir = subjects.get(event.fachKey);
+      if (key === event.fachKey || types.get(event.fachKey)!.size !== 1 || legacyDir === undefined) continue;
+      if (!subjects.has(key)) subjects.set(key, legacyDir);
+      const legacyFile = subjectFiles.get(event.fachKey);
+      if (subjects.get(key) === legacyDir && legacyFile !== undefined && !subjectFiles.has(key)) subjectFiles.set(key, legacyFile);
+      if (subjects.get(key) === legacyDir) {
+        subjects.delete(event.fachKey);
+        subjectFiles.delete(event.fachKey);
+      }
+    }
   }
 
   // Adopt every known UID before allocating folders for newly introduced subjects.
   for (const event of events) {
     const path = paths.get(event.uid);
-    if (path && !subjects.has(event.fachKey)) subjects.set(event.fachKey, path.split("/")[0]);
+    if (path && !subjects.has(keyOf(event))) subjects.set(keyOf(event), path.split("/")[0]);
   }
   const dirs = new Set([...subjects.values(), ...[...reserved.values()].map((path) => path.split("/")[0])].map(pathKey));
   let nextNumber = Math.max(0, ...[...dirs].map((dir) => Number(dir.match(/^(\d+)-/)?.[1] ?? 0))) + 1;
-  for (const event of [...events].sort((a, b) => a.fachKey.localeCompare(b.fachKey) || a.uid.localeCompare(b.uid))) {
-    if (subjects.has(event.fachKey)) continue;
-    const readableKey = slug(event.fach) || "fach";
+  for (const event of [...events].sort((a, b) => keyOf(a).localeCompare(keyOf(b)) || a.uid.localeCompare(b.uid))) {
+    if (subjects.has(keyOf(event))) continue;
+    const readableKey = stemOf(event) || "fach";
     let dir: string;
     do {
       dir = `${String(nextNumber++).padStart(2, "0")}-${readableKey}`;
     } while (dirs.has(pathKey(dir)));
     validateRelativePath(dir, 1);
-    subjects.set(event.fachKey, dir);
+    subjects.set(keyOf(event), dir);
     dirs.add(pathKey(dir));
   }
 
   for (const event of [...events].sort((a, b) => a.start.localeCompare(b.start) || a.uid.localeCompare(b.uid))) {
     if (paths.has(event.uid)) continue;
-    const base = `${subjects.get(event.fachKey)!}/${toLocalDateKey(event.start)}_${folderStem(event)}`;
+    const base = `${subjects.get(keyOf(event))!}/${toLocalDateKey(event.start)}_${folderStem(event)}`;
     let path = base;
     if (reserved.has(pathKey(path))) path = `${base}-${toLocalTimeKey(event.start)}`;
     const timed = path;
@@ -199,17 +229,18 @@ export function assignEventPaths(
     if (occupiedMocs.has(target)) throw new Error("Mehrere Fächer sind derselben Fachdatei zugeordnet.");
     occupiedMocs.set(target, key);
   }
-  for (const event of [...events].sort((a, b) => a.fachKey.localeCompare(b.fachKey))) {
+  for (const event of [...events].sort((a, b) => keyOf(a).localeCompare(keyOf(b)))) {
+    const key = keyOf(event);
     const path = paths.get(event.uid)!;
     if (!files.has(path)) files.set(path, appointmentFileName(event.fach, toLocalDateKey(event.start), toLocalTimeKey(event.start)));
-    if (!subjectFiles.has(event.fachKey)) {
-      const base = subjectFileName(event.fach);
+    if (!subjectFiles.has(key)) {
+      const base = subjectFileName(titleOf(event));
       let file = base;
       let suffix = 2;
-      const dir = subjects.get(event.fachKey)!;
+      const dir = subjects.get(key)!;
       while (occupiedMocs.has(pathKey(`${dir}/${file}`))) file = `${base.slice(0, -3)} (${suffix++}).md`;
-      subjectFiles.set(event.fachKey, file);
-      occupiedMocs.set(pathKey(`${dir}/${file}`), event.fachKey);
+      subjectFiles.set(key, file);
+      occupiedMocs.set(pathKey(`${dir}/${file}`), key);
     }
   }
 
@@ -226,7 +257,7 @@ export function assignEventPaths(
     events: events.map((event) => {
       const terminRel = paths.get(event.uid)!;
       return { ...event, fachDir: terminRel.split("/")[0], terminRel,
-        noteFile: files.get(terminRel), subjectDir: subjects.get(event.fachKey), subjectFile: subjectFiles.get(event.fachKey) };
+        noteFile: files.get(terminRel), subjectDir: subjects.get(keyOf(event)), subjectFile: subjectFiles.get(keyOf(event)) };
     }),
     raw: `${JSON.stringify(next, null, 2)}\n`,
   };

@@ -270,12 +270,12 @@ export function parseIcs(icsText: string): StudyEvent[] {
     }
   }
 
-  // Initial path suggestions; resolveEventPaths owns the persisted assignments.
-  const subjects = [...fachJeKey.entries()].sort(([ka, a], [kb, b]) =>
-    compareText(a.fach, b.fach) || compareText(ka, kb));
-  const dirJeKey = new Map(subjects.map(([key, subject], i) => {
-    return [key, `${String(i + 1).padStart(2, "0")}-${slug(subject.fach) || "fach"}`] as const;
-  }));
+  // Initial path suggestions, one folder per subject and course type; resolveEventPaths owns the persisted assignments.
+  const folders = new Map<string, { fach: string; typ: EventType }>();
+  for (const t of tmp) folders.set(folderKey(t), { fach: fachJeKey.get(t.fachKey)!.fach, typ: t.typ });
+  const dirJeKey = new Map([...folders.entries()]
+    .sort(([ka, a], [kb, b]) => compareText(a.fach, b.fach) || compareText(a.typ, b.typ) || compareText(ka, kb))
+    .map(([key, folder], i) => [key, `${String(i + 1).padStart(2, "0")}-${subjectSlug(folder.fach, folder.typ) || "fach"}`] as const));
 
   // Termin-Ordner, Kollisionen am selben Tag -> Uhrzeit anhängen
   const seen = new Set<string>();
@@ -283,7 +283,7 @@ export function parseIcs(icsText: string): StudyEvent[] {
 
   return tmp.map((t) => {
     const fach = fachJeKey.get(t.fachKey)!.fach;
-    const fachDir = dirJeKey.get(t.fachKey)!;
+    const fachDir = dirJeKey.get(folderKey(t))!;
     const base = `${t.dateKey}_${subjectSlug(fach, t.typ)}`;
     const ck = `${fachDir}/${base}`;
     let folder = seen.has(ck) ? `${base}-${toLocalTimeKey(t.start)}` : base;
@@ -330,6 +330,38 @@ export function buildFaecher(events: StudyEvent[]) {
         dir: representative.subjectDir ?? representative.fachDir,
         file: representative.subjectFile,
         termine: group.length,
+      };
+    })
+    .sort((a, b) => compareText(a.name, b.name) || compareText(a.key, b.key));
+}
+
+/** Vault folder identity: one folder per subject and course type, since UE and VO can have different lecturers. */
+export function folderKey(event: { fachKey: string; typ: string }): string {
+  return `${event.fachKey}-${slug(event.typ)}`;
+}
+
+/** Display name of a subject folder and its overview note, e.g. "Coding UE". */
+export function folderTitle(fach: string, typ: string): string {
+  const name = subjectName(fach);
+  return typ === "SONST" ? name : `${name} ${typ}`;
+}
+
+/** Vault folders for the semester overview and the per-folder overview notes, sorted by name. */
+export function buildFolders(events: StudyEvent[]) {
+  const map = new Map<string, StudyEvent[]>();
+  for (const e of events) {
+    const key = folderKey(e);
+    map.set(key, [...(map.get(key) ?? []), e]);
+  }
+  return [...map.entries()]
+    .map(([key, group]) => {
+      const faecher = buildFaecher(group);
+      const fach = faecher[0];
+      return {
+        ...fach,
+        key,
+        name: folderTitle(fach.name, group[0].typ),
+        fachKey: group[0].fachKey,
       };
     })
     .sort((a, b) => compareText(a.name, b.name) || compareText(a.key, b.key));

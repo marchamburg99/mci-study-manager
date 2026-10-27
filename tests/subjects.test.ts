@@ -121,7 +121,7 @@ describe("parseIcs subject identity", () => {
     expect(events[1].fach).toBe(events[0].fach);
   });
 
-  it.each(["DB-101", undefined])("groups mixed types with LV %s", (lv) => {
+  it.each(["DB-101", undefined])("groups mixed types into one subject with a folder per type for LV %s", (lv) => {
     const events = parseIcs(calendar([
       { lv, name: "Coding VO", typ: "VO" },
       { lv, name: "Geleitetes Selbststudium Coding (UE)", typ: "UE" },
@@ -129,7 +129,7 @@ describe("parseIcs subject identity", () => {
     ]));
 
     expect(new Set(events.map((event) => event.fachKey)).size).toBe(1);
-    expect(events.map((event) => event.fachDir)).toEqual(["01-coding", "01-coding", "01-coding"]);
+    expect(events.map((event) => event.fachDir)).toEqual(["03-coding-vo", "02-coding-ue", "01-coding-ilv"]);
     expect(buildFaecher(events)).toHaveLength(1);
     expect(buildFaecher(events)[0]).toMatchObject({ name: "Coding", types: ["ILV", "UE", "VO"], termine: 3 });
   });
@@ -152,8 +152,8 @@ describe("parseIcs subject identity", () => {
       { typ: "ILV", ...variants[2] },
     ]);
     expect(events.map((event) => event.fach)).toEqual(Array(3).fill("Computational Thinking I"));
-    expect(reversed.map((event) => ({ key: event.fachKey, dir: event.fachDir })))
-      .toEqual(events.map((event) => ({ key: event.fachKey, dir: event.fachDir })));
+    const folders = (list: typeof events) => list.map((event) => `${event.typ}:${event.fachKey}:${event.fachDir}`).sort();
+    expect(folders(reversed)).toEqual(folders(events));
     expect(renamed.fachKey).toBe(events[0].fachKey);
     expect(standalone.fachKey).toBe(events[0].fachKey);
   });
@@ -239,12 +239,12 @@ describe("parseIcs subject identity", () => {
 });
 
 describe("parseIcs initial folder suggestions", () => {
-  it("uses a readable subject slug and keeps the type only in event folders", () => {
+  it("uses a readable subject and type slug for the folder", () => {
     const events = parseIcs(calendar([{ lv: "DB-101", teacher: "Anna Example" }]));
 
     expect(events[0]).toMatchObject({
-      fachDir: "01-databases",
-      terminRel: "01-databases/2026-10-05_databases-ilv",
+      fachDir: "01-databases-ilv",
+      terminRel: "01-databases-ilv/2026-10-05_databases-ilv",
     });
   });
 
@@ -254,28 +254,28 @@ describe("parseIcs initial folder suggestions", () => {
     const reversed = parseIcs(calendar([...variants].reverse()));
 
     expect(new Set(events.map((event) => event.fachDir)).size).toBe(2);
-    expect(events.map((event) => event.fachDir).sort()).toEqual(["01-databases", "02-databases"]);
+    expect(events.map((event) => event.fachDir).sort()).toEqual(["01-databases-ilv", "02-databases-ilv"]);
     expect(reversed.map((event) => event.fachDir)).toEqual(events.map((event) => event.fachDir).reverse());
   });
 
-  it("removes the type from the subject folder without duplicating it in the event folder", () => {
+  it("does not duplicate a type already contained in the course name", () => {
     const events = parseIcs(calendar([{ name: "Coding UE", typ: "UE" }]));
 
     expect(events[0]).toMatchObject({
-      fachDir: "01-coding",
-      terminRel: "01-coding/2026-10-05_coding-ue",
+      fachDir: "01-coding-ue",
+      terminRel: "01-coding-ue/2026-10-05_coding-ue",
     });
   });
 
-  it("keeps same-time events of different types in one subject folder", () => {
+  it("puts same-time events of different types into separate folders", () => {
     const events = parseIcs(calendar([
       { name: "Coding", lv: "C-101-VO", typ: "VO" },
       { name: "Coding", lv: "C-101-UE", typ: "UE" },
     ]));
 
     expect(events.map((event) => event.terminRel)).toEqual([
-      "01-coding/2026-10-05_coding-vo",
-      "01-coding/2026-10-05_coding-ue",
+      "02-coding-vo/2026-10-05_coding-vo",
+      "01-coding-ue/2026-10-05_coding-ue",
     ]);
   });
 
@@ -287,9 +287,9 @@ describe("parseIcs initial folder suggestions", () => {
     ]));
 
     expect(events.map((event) => event.terminRel)).toEqual([
-      "01-databases/2026-10-05_databases-ilv",
-      "01-databases/2026-10-05_databases-ilv-0900",
-      "01-databases/2026-10-05_databases-ilv-0900-2",
+      "01-databases-ilv/2026-10-05_databases-ilv",
+      "01-databases-ilv/2026-10-05_databases-ilv-0900",
+      "01-databases-ilv/2026-10-05_databases-ilv-0900-2",
     ]);
   });
 });
@@ -308,7 +308,7 @@ describe("buildFaecher", () => {
       name: "Databases",
       types: ["ILV"],
       dozent: "Anna Example, Ben Example",
-      dir: "01-databases",
+      dir: "01-databases-ilv",
       file: undefined,
       termine: 4,
     }]);

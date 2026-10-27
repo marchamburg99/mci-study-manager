@@ -26,7 +26,7 @@ describe("Obsidian filenames", () => {
     const first = assignEventPaths(null, [], [event]);
     const next = assignEventPaths(first.raw, [], [{ ...event, fach: "New title", start: "2027-03-02T10:00:00.000Z" }]);
     expect(next.events[0]).toMatchObject({
-      terminRel: first.events[0].terminRel, noteFile: "2026-10-05 0900 Databases.md", subjectFile: "Databases.md",
+      terminRel: first.events[0].terminRel, noteFile: "2026-10-05 0900 Databases.md", subjectFile: "Databases ILV.md",
     });
     expect(next.raw).toBe(first.raw);
   });

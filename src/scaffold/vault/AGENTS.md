@@ -12,17 +12,18 @@ Answer in the user's language. These instructions apply to every file in this va
 | `00-system/templates/` | Session template, `agent/` for agent work notes | User; app creates them once |
 | `00-system/views/*.base` | Obsidian Bases views for sessions and assignments | User; app creates them once |
 | `<Semester>/_Semester.md` | Semester overview | App inside `sm:list` markers, user elsewhere |
-| `<Semester>/<NN-course>/<Course>.md` | Course overview | App inside `sm:list` markers, user elsewhere |
-| `<Semester>/<NN-course>/<YYYY-MM-DD_session>/` | One session: its note plus `docs/` for files | App creates; user owns the content |
+| `<Semester>/<NN-course-type>/<Course Type>.md` | Overview of one course type, e.g. `02-coding-ue/Coding UE.md` | App inside `sm:list` markers, user elsewhere |
+| `<Semester>/<NN-course-type>/<YYYY-MM-DD_session>/` | One session: its note plus `docs/` for files | App creates; user owns the content |
 | `Studium/` | Cross-semester knowledge and study rules | User |
 | `Studium/Sakai Live - <Course> - <Semester> - <id>.md` | Imported Sakai content | App above the `<!-- sm:sakai:… -->` marker, user below |
 | `Studium/Quellen/` | Imported PDFs (`Sakai-<sha256>.pdf`) and official documents | Originals; never edit |
 | `.mci-manager/`, `<Semester>/.mci-manager/` | App state: path index, caches, history, trash | App only; never edit |
 | `.obsidian/` | Obsidian settings | User; do not change as a side effect |
 
-Summaries, presentations and assignments of a session belong in that session's
-folder and are linked from its note with wikilinks. Older app versions left several
-numbered folders for the same course; identify a course by `lv` plus semester and a
+Each course type of a subject (UE, VO, ILV) has its own folder, because they can have
+different lecturers. Summaries, presentations and assignments of a session belong in
+that session's folder and are linked from its note with wikilinks. Older app versions
+left several numbered folders for the same course; identify a course by `lv` plus semester and a
 session by `uid`, never by folder name or number. Do not merge, renumber or move them.
 
 ## Routing

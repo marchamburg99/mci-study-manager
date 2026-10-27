@@ -378,7 +378,7 @@ export function planVaultMigration(input: {
     }
   }
   const normalizedEvents = input.events.map((event) => ({ ...event, fach: subjects.get(event.fachKey)!.name, lvNummer: lvNumber(event.lvNummer) }));
-  const assigned = assignEventPaths(JSON.stringify(seed), notes, normalizedEvents);
+  const assigned = assignEventPaths(JSON.stringify(seed), notes, normalizedEvents, "subject");
   const index = readIndex(assigned.raw);
   const final = new Map(files);
   const renames = new Map<string, string>();
