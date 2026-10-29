@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Builds the shareable installer package for classmates:
 #   share/MCI-Studien-Manager-<version>.zip
-#     MCI-Studien-Manager-<version>.dmg, Installationsanleitung.pdf, Pruefsumme-SHA256.txt
+#     MCI-Studien-Manager-<version>.dmg, Installationsanleitung.pdf, Pruefsumme-SHA256.txt, KI-Dateien/
+#   share/KI-Dateien-<version>.zip (vault AI files for manual installation)
 # Usage: scripts/share-package.sh [--skip-build]
 set -euo pipefail
 
@@ -37,6 +38,12 @@ sed -e "s/{{VERSION}}/${version}/g" \
   --print-to-pdf="$root/$out/Installationsanleitung.pdf" "file://$html" 2>/dev/null
 rm -rf "$(dirname "$html")"
 
+ai="KI-Dateien-${version}"
+node scripts/export-ai-files.mjs "$root/$out/KI-Dateien"
+rm -f "share/${ai}.zip"
+(cd "$out" && ditto -c -k --norsrc --noextattr --keepParent "KI-Dateien" "$root/share/${ai}.zip")
+
 (cd share && ditto -c -k --norsrc --noextattr --keepParent "$name" "${name}.zip")
 echo "Package: share/${name}.zip"
+echo "AI files: share/${ai}.zip"
 echo "SHA-256 (DMG): $sha"

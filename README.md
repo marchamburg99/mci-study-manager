@@ -64,6 +64,13 @@ Einstellungen sperren Bearbeitungen von `.mci-manager/`, `.obsidian/` und
 `Studium/Quellen/`. Vorhandene Dateien gleichen Namens werden nie überschrieben; eigene
 Anpassungen bleiben erhalten, spätere App-Versionen aktualisieren sie aber auch nicht.
 
+Wer die KI-Dateien ohne die App nutzen will, etwa für einen bestehenden Obsidian-Vault,
+lädt `KI-Dateien-<Version>.zip` von der Release-Seite und kopiert den Inhalt in den
+Hauptordner des Vaults; `LIESMICH.txt` erklärt die Schritte. Die Quelle ist
+`src/scaffold/vault/`, `manifest.json` ordnet jede Datei ihrem Pfad im Vault zu.
+`scripts/share-package.sh` erzeugt die ZIP mit `scripts/export-ai-files.mjs` aus
+denselben Dateien, die die App anlegt.
+
 ### Sakai-Wissen in der App
 
 Das Fach bündelt Sakai-Informationen, Materialien, Zusammenfassungen und ergänzende

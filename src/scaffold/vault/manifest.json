@@ -1,0 +1,20 @@
+{
+  "AGENTS.md": "AGENTS.md",
+  "CLAUDE.md": "CLAUDE.md",
+  ".agents/study/vault-contract.md": "agents/vault-contract.md",
+  ".agents/study/notes-learning.md": "agents/notes-learning.md",
+  ".agents/study/research.md": "agents/research.md",
+  ".agents/study/academic-work.md": "agents/academic-work.md",
+  ".agents/study/reference-basis.md": "agents/reference-basis.md",
+  ".agents/study/acceptance.md": "agents/acceptance.md",
+  ".claude/settings.json": "claude-settings.json",
+  ".obsidian/types.json": "obsidian-types.json",
+  "00-system/templates/agent/assignment.md": "templates-agent/assignment.md",
+  "00-system/templates/agent/study-plan.md": "templates-agent/study-plan.md",
+  "00-system/templates/agent/research-log.md": "templates-agent/research-log.md",
+  "00-system/templates/agent/source-note.md": "templates-agent/source-note.md",
+  "00-system/templates/agent/learning-review.md": "templates-agent/learning-review.md",
+  "00-system/templates/agent/ai-use-log.md": "templates-agent/ai-use-log.md",
+  "00-system/views/Termine.base": "views/Termine.base",
+  "00-system/views/Aufgaben.base": "views/Aufgaben.base"
+}
