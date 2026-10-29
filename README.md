@@ -71,6 +71,45 @@ Hauptordner des Vaults; `LIESMICH.txt` erklärt die Schritte. Die Quelle ist
 `scripts/share-package.sh` erzeugt die ZIP mit `scripts/export-ai-files.mjs` aus
 denselben Dateien, die die App anlegt.
 
+### Lernkreislauf mit NotebookLM
+
+Im KI-Assistenten mit Zugriff auf den Studienordner startet „Unterricht vorbei“
+den gleichnamigen Skill: gespeicherte Mitschrift und relevante Dokumente werden
+zusammengefasst und an das eigene NotebookLM übertragen. Der Skill erzeugt daraus
+ein Quiz, das direkt in der jeweiligen Einheit im Studien-Manager erscheint.
+Vorher offene Mitschrift-Entwürfe in der App sichern. Die App liest neue Quizze
+beim Fensterfokus oder innerhalb von 30 Sekunden ein.
+
+Das Quiz prüft Single-Choice-Fragen. Entwürfe bleiben lokal erhalten; beim
+Abschließen speichert die App Antworten und Zeitpunkt als `Lernquiz-Ergebnisse.json`
+im Terminordner. Lösungen und Erklärungen erscheinen erst nach dem Abschluss.
+Weitere Versuche bleiben als eigene Einträge erhalten. Ein generiertes Quiz
+ändert die Kästchen „Vorbereitet“ oder „Nachbereitet“ nicht.
+
+„Unterricht startet“ wertet vor der nächsten Einheit die bisherigen Quizversuche
+desselben Fachs aus, auch aus anderen Lehrformen. Der Skill legt einen verlinkten
+Lernrückblick und eine Vorbereitung mit gezielten neuen Übungsaufgaben an.
+Unbearbeitete Quizze gelten als ungetestet. Diese Vorbereitung fließt nach dem
+Unterricht wieder in die nächste Zusammenfassung und den nächsten Quizauftrag ein.
+
+Die Skills werden für Codex und Claude Code im Vault angelegt und sind auch in
+der KI-Dateien-ZIP enthalten. Bestehende eigene Dateien werden nicht überschrieben;
+neue Skill-Dateien kommen beim nächsten Vault-Sync hinzu. Andere KI-Assistenten
+müssen lokale Dateien lesen und das mitgelieferte Python-Skript ausführen können.
+Bei einem älteren eigenen `AGENTS.md` die Skills direkt aufrufen.
+
+Die lokale Verbindung verwendet das inoffizielle
+[notebooklm-py 0.8.6](https://github.com/teng-lin/notebooklm-py/tree/v0.8.6).
+Der Skill richtet das Werkzeug mit Python ab 3.10 und `uv` einmalig ein;
+anschließend meldet sich jede Person selbst bei Google an. Auf macOS bleiben
+Anmeldedaten im Schlüsselbund, außerhalb des Vaults. Google-Änderungen,
+abgelaufene Sitzungen oder Kontingente können die Verbindung unterbrechen.
+Ist im NotebookLM-Konto noch keine Ausgabesprache festgelegt, setzt die Verbindung
+beim ersten Quiz Deutsch als kontoweiten Standard; eine bestehende Auswahl bleibt erhalten.
+Bestätigte Arbeitsschritte werden für die Fortsetzung gespeichert; unbestätigte
+Schreibaufrufe müssen im Notebook geprüft werden, damit nichts doppelt angelegt wird.
+Die App selbst enthält keinen KI-Chat und startet den Assistenten nicht automatisch.
+
 ### Sakai-Wissen in der App
 
 Das Fach bündelt Sakai-Informationen, Materialien, Zusammenfassungen und ergänzende

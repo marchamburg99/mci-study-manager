@@ -16,5 +16,11 @@
   "00-system/templates/agent/learning-review.md": "templates-agent/learning-review.md",
   "00-system/templates/agent/ai-use-log.md": "templates-agent/ai-use-log.md",
   "00-system/views/Termine.base": "views/Termine.base",
-  "00-system/views/Aufgaben.base": "views/Aufgaben.base"
+  "00-system/views/Aufgaben.base": "views/Aufgaben.base",
+  ".agents/skills/unterricht-vorbei/SKILL.md": "skills/unterricht-vorbei/SKILL.md",
+  ".agents/skills/unterricht-vorbei/scripts/notebooklm_bridge.py": "skills/unterricht-vorbei/scripts/notebooklm_bridge.py",
+  ".agents/skills/unterricht-startet/SKILL.md": "skills/unterricht-startet/SKILL.md",
+  ".claude/skills/unterricht-vorbei/SKILL.md": "skills/unterricht-vorbei/SKILL.md",
+  ".claude/skills/unterricht-vorbei/scripts/notebooklm_bridge.py": "skills/unterricht-vorbei/scripts/notebooklm_bridge.py",
+  ".claude/skills/unterricht-startet/SKILL.md": "skills/unterricht-startet/SKILL.md"
 }

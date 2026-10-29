@@ -22,6 +22,7 @@ import { resolveKnowledgeTarget } from "../lib/knowledgeLinks";
 import { useNoteEditor } from "../hooks/useNoteEditor";
 import { MdPreview } from "./MdPreview";
 import { FachKalender } from "./FachKalender";
+import { QuizPractice } from "./QuizPractice";
 import {
   IconBack,
   IconDoc,
@@ -303,6 +304,8 @@ export function FachView({ cfg, event, events, hue, knowledge, knowledgeNotes, o
           onToggle={() => void editor.toggle("nachbereitet")}
         />
       </section>
+
+      <QuizPractice key={JSON.stringify([cfg.basisPfad, cfg.semester, event.uid])} cfg={cfg} event={event} />
 
       <div className="fach-grid">
         <div className="fach-main">
