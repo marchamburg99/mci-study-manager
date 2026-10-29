@@ -34,6 +34,8 @@ Read only the branches the task needs; load several for mixed tasks.
 | --- | --- |
 | Schedule, deadline, workload, app data, course or session identity | [.agents/study/vault-contract.md](.agents/study/vault-contract.md) |
 | Capture or edit notes, explain material, practise, prepare for exams | [.agents/study/notes-learning.md](.agents/study/notes-learning.md) |
+| Student says "Unterricht vorbei": summarize this lesson and publish its NotebookLM quiz | [.agents/skills/unterricht-vorbei/SKILL.md](.agents/skills/unterricht-vorbei/SKILL.md) |
+| Student says "Unterricht startet": use saved quiz attempts for the next lesson | [.agents/skills/unterricht-startet/SKILL.md](.agents/skills/unterricht-startet/SKILL.md) |
 | Find, evaluate or cite sources; literature review | [.agents/study/research.md](.agents/study/research.md) |
 | Assignment, academic writing, presentation, analysis, submission check | [.agents/study/academic-work.md](.agents/study/academic-work.md) |
 | Rationale of this workflow or its external sources | [.agents/study/reference-basis.md](.agents/study/reference-basis.md) |
